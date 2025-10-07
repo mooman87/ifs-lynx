@@ -1,0 +1,62 @@
+.close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.line {
+    position: absolute;
+    width: 20px;
+    height: 3px;
+    background-color: #6B6C7B;
+    border-radius: 30px;
+    transition: all 0.3s ease;
+}
+
+.line.one {
+    transform: rotate(45deg);
+}
+
+.line.two {
+    transform: rotate(135deg);
+}
+
+
+.edit-btn {
+    display: flex;
+    align-items: center;
+    font-family: inherit;
+    width: fit-content;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0.3em 0.7em 0.3em 0.6em;
+    color: white;
+    background: linear-gradient(
+      0deg,
+      rgb(87, 189, 226) 0%,
+      rgb(20, 157, 167) 100%
+    );
+    border: none;
+    box-shadow: 0 0.7em 1.5em -0.5em #1614a798;
+    letter-spacing: 0.05em;
+    border-radius: 20em;
+  }
+  
+  .edit-btn svg {
+    margin-right: 6px;
+  }
+  
+  .edit-btn:hover {
+    box-shadow: 0 0.5em 1.5em -0.5em #1614a798;
+  }
+  
+  .edit-btn:active {
+    box-shadow: 0 0.3em 1em -0.5em #1614a798;
+  }
+  

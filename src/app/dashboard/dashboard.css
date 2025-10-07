@@ -1,0 +1,200 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive columns */
+  gap: 1rem;
+}
+
+.add-btn {
+  display: flex;
+  align-items: center;
+  font-family: inherit;
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 16px;
+  padding: 0.3em 0.7em 0.3em 0.6em;
+  color: white;
+  background: linear-gradient(
+    0deg,
+    rgba(20, 167, 62, 1) 0%,
+    rgba(102, 247, 113, 1) 100%
+  );
+  border: none;
+  box-shadow: 0 0.7em 1.5em -0.5em #14a73e98;
+  letter-spacing: 0.05em;
+  border-radius: 20em;
+}
+
+.add-btn svg {
+  margin-right: 6px;
+}
+
+.add-btn:hover {
+  box-shadow: 0 0.5em 1.5em -0.5em #14a73e98;
+}
+
+.add-btn:active {
+  box-shadow: 0 0.3em 1em -0.5em #14a73e98;
+}
+
+
+
+/* log out button styles, will eventually move with the button itself */
+
+.logout-btn {
+  /* Reset system appearance */
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  
+  /* Remove any default background images and accent colors */
+  background-image: none !important;
+  accent-color: unset !important;
+
+  /* Force your desired styles */
+  background-color: rgb(255, 65, 65) !important;
+  color: white !important;
+  font-size: 16px;  /* Ensure a consistent base font size */
+  padding: 0;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition-duration: 0.3s;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.199);
+}
+
+/* plus sign */
+.out {
+  width: 100%;
+  transition-duration: .3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.out svg {
+  width: 17px;
+}
+
+.out svg path {
+  fill: white;
+}
+/* text */
+.text {
+  position: absolute;
+  right: 0%;
+  width: 0%;
+  opacity: 0;
+  color: white;
+  font-size: 1em;
+  font-weight: 600;
+  transition-duration: .3s;
+}
+/* hover effect on button width */
+.logout-btn:hover {
+  width: 125px;
+  border-radius: 40px;
+  transition-duration: .3s;
+}
+
+.logout-btn:hover .out {
+  width: 30%;
+  transition-duration: .3s;
+  padding-left: 20px;
+}
+/* hover effect button's text */
+.logout-btn:hover .text {
+  opacity: 1;
+  width: 70%;
+  transition-duration: .3s;
+  padding-right: 10px;
+}
+/* button click effect*/
+.logout-btn:active {
+  transform: translate(2px ,2px);
+}
+
+.logout-btn .out svg {
+  background-color: rgb(255, 65, 65) !important;
+  width: 17px !important;
+  height: auto;
+}
+
+.logout-btn::-moz-focus-inner {
+  border: 0;
+}
+ /* resource grid container */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 25px;
+  justify-content: center;
+}
+
+
+.card {
+  width: 190px;
+  height: 254px;
+  border-radius: 20px;
+  background: url(/textured-paper.png);
+  position: relative;
+  padding: 1.8rem;
+  border: 2px solid #c3c6ce;
+  transition: 0.5s ease-out;
+  overflow: visible;
+ }
+ 
+ .card-details {
+  color: black;
+  height: 100%;
+  gap: .5em;
+  display: grid;
+  place-content: center;  
+  border-radius: 20px;
+  padding: 50px;
+  
+ }
+ 
+ .card-button {
+  transform: translate(-50%, 125%);
+  width: 60%;
+  border-radius: 1rem;
+  border: none;
+  color: #fff;
+  font-size: 1rem;
+  padding: .5rem 1rem;
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  opacity: 0;
+  transition: 0.3s ease-out;
+ }
+ 
+ .text-body {
+  color: rgb(134, 134, 134);
+ }
+ 
+ /*Text*/
+ .text-title {
+  font-size: 1.3em;
+  font-weight: bold;
+  color: #363636;
+ }
+ 
+ /*Hover*/
+ .card:hover {
+  border-radius: 20px;
+  box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.25);
+ }
+ 
+ .card:hover .card-button {
+  transform: translate(-50%, 50%);
+  opacity: 1;
+ }
