@@ -1,17 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useDashboard } from "@/app/context/DashboardContext";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import CreateEmployeeModal from "@/app/components/CreateEmployeeModal";
 import "../../employee/employee.css";
 
 const EmployeeProfilePage = () => {
   const { id } = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { selectedPage } = useDashboard();
-  const selectedPageFromUrl = searchParams.get("selectedPage") || "Employee List";
   const [employee, setEmployee] = useState(null);
   const [projects, setProjects] = useState([]);
   const [error, setError] = useState("");
@@ -19,7 +15,7 @@ const EmployeeProfilePage = () => {
   const [editFormData, setEditFormData] = useState({});
 
   const handleClose = () => {
-    router.push(`/dashboard?selectedPage=${encodeURIComponent(selectedPageFromUrl)}`);
+    router.push(`/dashboard?selectedPage=Employee%20List`);
   };
 
   useEffect(() => {
@@ -126,7 +122,7 @@ const EmployeeProfilePage = () => {
 
   return (
     <div className="min-h-screen p-6">
-      {/* Absolute Close Button (similar to project page) */}
+      {/* Close Button (similar to project page) */}
       <div 
         className="absolute top-6 right-9 cursor-pointer"
         onClick={handleClose}

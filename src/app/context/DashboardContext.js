@@ -1,19 +1,15 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { createContext, useContext, useState } from "react";
 
-const DashboardContext = createContext();
+const DashboardContext = createContext(null);
 
-export const DashboardProvider = ({ children }) => {
-  const searchParams = useSearchParams();
-  const initialPage = searchParams.get("selectedPage") || "Active Projects";
-  const [selectedPage, setSelectedPage] = useState(initialPage);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const currentPage = searchParams.get("selectedPage") || "Active Projects";
-    setSelectedPage(currentPage);
-  }, [searchParams]);
+export const DashboardProvider = ({
+  children,
+  initialSelectedPage = "Active Projects",
+  initialUser = null,
+}) => {
+  const [selectedPage, setSelectedPage] = useState(initialSelectedPage);
+  const [user, setUser] = useState(initialUser);
 
   return (
     <DashboardContext.Provider value={{ selectedPage, setSelectedPage, user, setUser }}>
@@ -22,4 +18,10 @@ export const DashboardProvider = ({ children }) => {
   );
 };
 
-export const useDashboard = () => useContext(DashboardContext);
+export const useDashboard = () => {
+  const ctx = useContext(DashboardContext);
+  if (!ctx) {
+    throw new Error("useDashboard must be used within a DashboardProvider");
+  }
+  return ctx;
+};
