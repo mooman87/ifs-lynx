@@ -22,7 +22,8 @@ export async function POST(request) {
     'HR',
     'Payroll',
     'Travel',
-    'Super Admin'
+    'Super Admin',
+    'Demo'
   ];
   if (!allowedRoles.includes(role)) {
     return NextResponse.json({ message: 'Invalid role' }, { status: 400 });

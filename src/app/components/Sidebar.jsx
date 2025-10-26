@@ -64,7 +64,7 @@ const Sidebar = () => {
           { name: "Travel Management", key: "Travel Management" },
           { name: "Resources", key: "Resources" },
           ...(user.role === "Super Admin" ? [{ name: "Create User", key: "Create User" }] : []),
-          { name: "Manage Profile", key: "Manage Profile" },
+          ...(user.role === "Demo" ? [] : [{ name: "Manage Profile", key: "Manage Profile" }]),
         ].map((item) => (
           <button
             key={item.key}
