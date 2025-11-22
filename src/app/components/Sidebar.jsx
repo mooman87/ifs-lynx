@@ -52,8 +52,31 @@ const Sidebar = () => {
   const { selectedPage, setSelectedPage, user } = useDashboard();
   const router = useRouter();
 
-  const content = user ? (
+
+  if (!user) {
+    return (
+      <div className="w-64 bg-gray-400 text-white min-h-screen p-4 flex flex-col items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
+  const navItems = [
+    { name: "Active Projects", key: "Active Projects" },
+    { name: "Employee List", key: "Employee List" },
+    { name: "Travel Management", key: "Travel Management" },
+    { name: "Resources", key: "Resources" },
+    ...(user.role === "Super Admin" ? [{ name: "Create User", key: "Create User" }] : []),
+    ...(user.role === "Demo" ? [] : [{ name: "Manage Profile", key: "Manage Profile" }]),
+  ];
+
+  const handleClick = (key) => {
+    setSelectedPage(key);
+    router.push(`/dashboard?selectedPage=${encodeURIComponent(key)}`);
+  };
+  return (
     <>
+    <aside className="hidden md:flex md:w-64 bg-gray-400 text-white md:min-h-screen p-4 flex-col items-center">
       <div className="w-full flex justify-center -m-7">
         <Image height={250} width={250} src="/sidebarlogo.png" alt="lynx logo" />
       </div>
@@ -81,17 +104,24 @@ const Sidebar = () => {
           </button>
         ))}
       </nav>
+      </aside>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900 text-white border-t border-gray-700 z-50">
+        <div className="flex justify-around items-center py-2">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleClick(item.key)}
+              className={`flex flex-1 items-center justify-center py-1 ${
+                selectedPage === item.key ? "text-indigo-400" : "text-gray-300"
+              }`}
+            >
+              {/* Icons only on mobile */}
+              {pageIcons[item.key]}
+            </button>
+          ))}
+        </div>
+      </nav>
     </>
-  ) : (
-    <div className="w-full flex items-center justify-center">
-      Loading...
-    </div>
-  );
-
-  return (
-    <div className="w-64 bg-gray-400 text-white min-h-screen p-4 flex flex-col items-center">
-      {content}
-    </div>
   );
 };
 

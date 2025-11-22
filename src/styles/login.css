@@ -162,3 +162,11 @@
     transform: translateY(-400%);
   }
 }
+
+@media (max-width: 450px) {
+  .login-page {
+    display: flex;
+    flex-direction: column;
+
+  }
+}
