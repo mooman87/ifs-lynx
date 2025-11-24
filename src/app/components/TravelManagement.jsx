@@ -72,7 +72,8 @@ const TravelManagement = () => {
           </tbody>
         </table>
       </div>
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 md:hidden">
+      <div className="mt-4 md:hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {travelData.map((travel) => {
           const fullName = `${travel.employee?.firstName || ""} ${
             travel.employee?.lastName || ""
@@ -150,6 +151,7 @@ const TravelManagement = () => {
             </div>
           );
         })}
+      </div>
       </div>
       {isModalOpen && <CreateTravelDetails isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />}
     </div>

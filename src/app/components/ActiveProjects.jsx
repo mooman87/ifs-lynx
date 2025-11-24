@@ -104,7 +104,8 @@ const ActiveProjects = ({ projects, setProjects, fetchProjects, errorMessage, pa
               </tbody>
             </table>
           </div>
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 md:hidden">
+          <div className="mt-10 md:hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {projects.map((project) => {
                 const status = getProjectStatus(
                   project.startDate,
@@ -179,6 +180,7 @@ const ActiveProjects = ({ projects, setProjects, fetchProjects, errorMessage, pa
                   </div>
                 );
               })}
+            </div>
             </div>
           </>
         )}
