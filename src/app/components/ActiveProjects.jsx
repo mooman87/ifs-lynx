@@ -72,7 +72,8 @@ const ActiveProjects = ({ projects, setProjects, fetchProjects, errorMessage, pa
         {errorMessage ? (
           <p>{errorMessage}</p>
         ) : (
-          <div className="overflow-x-auto mt-10">
+          <>
+          <div className="overflow-x-auto mt-10 hidden md:block">
             <table className="w-full bg-white border border-gray-300 shadow-lg rounded-lg">
               <thead>
                 <tr className="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
@@ -103,6 +104,83 @@ const ActiveProjects = ({ projects, setProjects, fetchProjects, errorMessage, pa
               </tbody>
             </table>
           </div>
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 md:hidden">
+              {projects.map((project) => {
+                const status = getProjectStatus(
+                  project.startDate,
+                  project.endDate
+                );
+
+                return (
+                  <div
+                    key={project._id}
+                    onClick={() => goToProject(project._id)}
+                    className="bg-white rounded-lg shadow border border-gray-200 p-4 flex flex-col gap-3 cursor-pointer hover:shadow-md transition-shadow"
+                  >
+                    
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-snug line-clamp-2">
+                        {project?.campaignName}
+                      </h3>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[0.7rem] font-medium ${status.bgColor} ${status.textColor}`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${status.dotBgColor}`}
+                        />
+                        {status.label}
+                      </span>
+                    </div>
+
+                    
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs text-gray-700">
+                      <div>
+                        <p className="font-semibold text-[0.65rem] uppercase tracking-wide text-gray-400">
+                          State Director
+                        </p>
+                        <p className="mt-1 truncate">
+                          {project?.stateDirector || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-[0.65rem] uppercase tracking-wide text-gray-400">
+                          Assigned Staff
+                        </p>
+                        <p className="mt-1">
+                          {project?.assignedEmployees.length}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-[0.65rem] uppercase tracking-wide text-gray-400">
+                          Doors Remaining
+                        </p>
+                        <p className="mt-1">
+                          {project?.doorsRemaining.toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-semibold text-[0.65rem] uppercase tracking-wide text-gray-400">
+                          Dates
+                        </p>
+                        <p className="mt-1">
+                          {project?.startDate
+                            ? new Date(project.startDate).toLocaleDateString()
+                            : "—"}{" "}
+                          –{" "}
+                          {project?.endDate
+                            ? new Date(project.endDate).toLocaleDateString()
+                            : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
       {isProjectModalOpen && (
