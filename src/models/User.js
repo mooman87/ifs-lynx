@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { Schema } from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -21,6 +22,11 @@ const UserSchema = new mongoose.Schema({
     ],
     default: 'Canvasser'
   },
+      organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      // required: true, 
+      },
   createdAt: { type: Date, default: Date.now },
 });
 

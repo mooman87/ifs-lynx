@@ -1,3 +1,4 @@
+// api/auth/register/route.js
 import { NextResponse } from 'next/server';
 import dbConnect from '../../../../utils/dbConnect';
 import User from '../../../../models/User';
@@ -6,7 +7,7 @@ import bcrypt from 'bcryptjs';
 export async function POST(request) {
   await dbConnect();
 
-  const { email, fullName, username, password, role } = await request.json();
+  const { email, organization, fullName, username, password, role, } = await request.json();
 
   if (!email || !fullName || !username || !password || !role) {
     return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
@@ -40,10 +41,11 @@ export async function POST(request) {
 
     const user = await User.create({
       email,
+      organization,
       fullName,
       username,
       password: hashedPassword,
-      role
+      role,
     });
     
     return NextResponse.json({

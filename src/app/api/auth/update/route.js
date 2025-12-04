@@ -1,21 +1,15 @@
 import bcrypt, { hash } from "bcryptjs";
 import dbConnect from "@/utils/dbConnect";
-import User from "@/models/User";
+import { withUser } from "@/utils/auth";
 
-export async function PUT(req) {
+export const PUT = withUser(async (req, user) => {
   try {
     await dbConnect();
 
-    const { email, currentPassword, newPassword } = await req.json();
+    const { currentPassword, newPassword } = await req.json();
 
-    if (!email || !currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword) {
       return new Response(JSON.stringify({ message: "Missing required fields" }), { status: 400 });
-    }
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return new Response(JSON.stringify({ message: "User not found" }), { status: 404 });
     }
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
@@ -32,4 +26,4 @@ export async function PUT(req) {
     console.error("Error updating password:", error);
     return new Response(JSON.stringify({ message: "Internal Server Error" }), { status: 500 });
   }
-}
+});

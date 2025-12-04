@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 const CreateUser = () => {
   const [formData, setFormData] = useState({
     email: "",
+    organization: "",
     username: "",
     fullName: "",
     password: "",
@@ -39,6 +40,7 @@ const CreateUser = () => {
     if (res.ok) {
       setFormData({
         email: "",
+        organization: "",
         username: "",
         fullName: "",
         password: "",
@@ -64,6 +66,18 @@ const CreateUser = () => {
               type="email"
               name="email"
               value={formData.email}
+              onChange={handleChange}
+              required
+              className="w-full rounded-md border border-gray-300 p-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-700">Organization</label>
+            <input
+              type="organization"
+              name="organization"
+              value={formData.organization}
               onChange={handleChange}
               required
               className="w-full rounded-md border border-gray-300 p-2 text-sm"

@@ -1,6 +1,13 @@
 import mongoose from 'mongoose';
+import { Schema } from 'mongoose';
 
 const EmployeeSchema = new mongoose.Schema({
+  organization: {
+  type: Schema.Types.ObjectId,
+  ref: "Organization",
+  required: true,
+  index: true,
+},
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   gender: { type: String, required: true },

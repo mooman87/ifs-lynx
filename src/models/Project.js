@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { Schema } from 'mongoose';
 
 const HotelSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -36,7 +37,13 @@ const ProjectSchema = new mongoose.Schema({
       employees: [{ type: mongoose.Schema.Types.ObjectId, ref: "Employee" }],
     },
   ],
-  survey: { type: SurveySchema, default: {} }
+  survey: { type: SurveySchema, default: {} },
+  organization: {
+  type: Schema.Types.ObjectId,
+  ref: "Organization",
+  required: true,
+  index: true,
+},
 }, { timestamps: true });
 
 export default mongoose.models.Project || mongoose.model('Project', ProjectSchema);

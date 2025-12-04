@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
-import { jwtVerify } from "jose";
+import { withUser } from "@/utils/auth";
 
-export async function GET(request) {
-  try {
-    const token = request.cookies.get("operatorToken")?.value;
-    if (!token) return NextResponse.json({ message: "No token found" }, { status: 401 });
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    
-    return NextResponse.json({ user: payload }, { status: 200 });
-  } catch (error) {
-    return NextResponse.json({ message: "Invalid token" }, { status: 401 });
-  }
-}
+export const GET = withUser(async (_request, user) => {
+  return NextResponse.json(
+    {
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        organization: user.organization
+          ? {
+            id: user.organization._id?.toString() || user.organization.toString(),
+            name: user.organization.name ?? undefined,
+          }
+          : null,
+      }, 
+    },
+    { status: 200 }
+  );
+}); 

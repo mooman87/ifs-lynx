@@ -1,3 +1,4 @@
+// api/auth/login/route.js
 import { NextResponse } from 'next/server';
 import dbConnect from '../../../../utils/dbConnect';
 import User from '../../../../models/User';
@@ -35,6 +36,7 @@ export async function POST(request) {
       email: user.email,
       role: user.role,
       fullName: user.fullName,
+      organization: user.organization?.toString() || null,
     };
 
     const jwtSecret = process.env.JWT_SECRET;
@@ -63,7 +65,6 @@ export async function POST(request) {
 
     return response;
   } catch (error) {
-    // Optional but useful for debugging in server logs:
     console.error('Login error:', error);
     return NextResponse.json(
       { message: 'Server error', error: error.message },
