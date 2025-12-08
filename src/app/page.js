@@ -7,7 +7,7 @@ import "../styles/login.css";
 export default function Home() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: '',
   });
   const [error, setError] = useState('');
@@ -45,11 +45,11 @@ export default function Home() {
       <form className='form' onSubmit={handleSubmit}>
         <div className='input-group'>
         <label>
-          Email
+          Username
           <input 
-            type="email"
-            name="email"
-            value={formData.email}
+            type="text"
+            name="username"
+            value={formData.username}
             onChange={handleChange}
             required 
           />

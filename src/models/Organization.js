@@ -11,7 +11,8 @@ const OrganizationSchema = new Schema(
         "Vendor",
         "Campaign",
         "PAC",
-        "Party"
+        "Party",
+        "Demo",
       ]},
       timezone: String,
     },

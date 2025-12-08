@@ -9,20 +9,24 @@ import TravelManagement from "../components/TravelManagement";
 import Resources from "../components/Resources";
 import CreateUser from "../components/CreateUser";
 import UpdateUser from "../components/UpdateUser";
+import SuperAdmin from "../components/SuperAdmin";
 import "./dashboard.css";
 
 const DashboardClient = () => {
-  const { selectedPage } = useDashboard();
+  const { selectedPage, user } = useDashboard();
   const [documents, setDocuments] = useState([]);
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [userRole, setUserRole] = useState("");
-  const [fullName, setFullName] = useState("");
   const [errorMessage, setErrorMessage] = useState('');
   const [employeesPerPage] = useState(5);
   const [projectsPerPage] = useState(5);
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
+
+  const userRole = user?.role || "";
+  const fullName = user?.fullName || "";
+  const orgType = user?.organization?.orgType || user?.organization?.settings?.orgType || null;
+  const orgSlug = user?.organization?.slug || null;
 
   const fetchDocuments = async () => {
     try {
@@ -50,21 +54,6 @@ const DashboardClient = () => {
     }
   };
 
-  const fetchUserRole = async () => {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      const data = await res.json();
-      if (res.ok && data.user) {
-        setUserRole(data.user.role);
-        setFullName(data.user.fullName);
-      } else {
-        console.error("Failed to fetch user role.");
-      }
-    } catch (error) {
-      console.error("Error fetching user role:", error);
-    }
-  };
-
   const fetchEmployees = async () => {
     try {
       const res = await fetch('/api/employee');
@@ -80,10 +69,6 @@ const DashboardClient = () => {
       setErrorMessage('An unexpected error occurred.');
     }
   };
-
-  useEffect(() => {
-    fetchUserRole();
-  }, []);
 
   useEffect(() => {
     setIsClient(true);
@@ -122,6 +107,8 @@ const DashboardClient = () => {
 
   const renderPage = () => {
     switch (selectedPage) {
+      case "Super Admin":
+        return <SuperAdmin user={user}/>
       case "Active Projects":
         return (
           <ActiveProjects
@@ -179,6 +166,11 @@ const DashboardClient = () => {
       <div className="flex-1 p-6 h-full overflow-auto">
         <div className="flex justify-end mb-4">
           <p className="text-l font-bold p-3">{fullName}</p>
+            {orgSlug && (
+              <p className="text-sm text-gray-500 p-3">
+                Org: {orgSlug} {orgType ? `(${orgType})` : ""}
+              </p>
+            )}
           <button type="button" onClick={handleLogout} className="logout-btn">
             <div className="out">
               <svg viewBox="0 0 512 512">

@@ -9,19 +9,13 @@ export async function POST(request) {
   try {
     await dbConnect();
 
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ message: 'Invalid JSON body' }, { status: 400 });
-    }
+    const { username, password } = await request.json();
 
-    const { email, password } = body || {};
-    if (!email || !password) {
+    if (!username || !password) {
       return NextResponse.json({ message: 'Missing email or password' }, { status: 400 });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ username }).populate("organization");
     if (!user) {
       return NextResponse.json({ message: 'Invalid credentials' }, { status: 400 });
     }
@@ -33,6 +27,7 @@ export async function POST(request) {
 
     const payload = {
       id: user._id.toString(),
+      username: user.username,
       email: user.email,
       role: user.role,
       fullName: user.fullName,
@@ -41,7 +36,6 @@ export async function POST(request) {
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-      // This will be caught and returned as JSON
       throw new Error('Missing JWT_SECRET in environment variables');
     }
 
