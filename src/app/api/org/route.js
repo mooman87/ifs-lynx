@@ -1,24 +1,36 @@
 // app/api/org/route.js
 import { NextResponse } from "next/server";
-import dbConnect from "@/utils/dbConnect";
-import Organization from "@/models/Organization";
 import { withRole } from "@/utils/auth";
+import { hasuraFetch } from "@/utils/hasura";
 
-export const GET = withRole("Super Admin",  async () => {
-  await dbConnect();
+const ORGS_QUERY = `
+query OrgsList {
+  organizations(order_by: { name: asc }) {
+    id
+    name
+    slug
+    org_type
+  }
+}
+`;
 
-  const orgs = await Organization.find({})
-    .sort({ name: 1 })
-    .select("name slug settings.orgType")
-    .lean();
+export const GET = withRole("Super Admin", async () => {
+  try {
+    const data = await hasuraFetch(ORGS_QUERY, {}, { admin: true });
 
-  return NextResponse.json(
-    orgs.map((org) => ({
-      id: org._id.toString(),
+    const orgs = (data.organizations || []).map((org) => ({
+      id: org.id,                
       name: org.name,
       slug: org.slug,
-      orgType: org.settings?.orgType || null,
-    })),
-    { status: 200 }
-  );
+      orgType: org.org_type || null,
+    }));
+
+    return NextResponse.json(orgs, { status: 200 });
+  } catch (error) {
+    console.error("GET /api/org error:", error);
+    return NextResponse.json(
+      { message: "Server error", error: error.message },
+      { status: 500 }
+    );
+  }
 });

@@ -1,21 +1,33 @@
-import dbConnect from "@/utils/dbConnect";
-import Project from "@/models/Project";
+// src/app/project/[id]/page.js
+import { headers } from "next/headers";
 import ProjectClient from "./ProjectClient";
 
+function getBaseUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  return "http://localhost:3000";
+}
+
 export default async function ProjectPage({ params }) {
- 
-  await dbConnect();
+  const { id } = await params;
 
+  const h = await headers();
+  const cookieHeader = h.get("cookie") ?? "";
 
-  const projectDoc = await Project.findById(params.id)
-    .populate("assignedEmployees")
-    .lean();
+  const baseUrl = getBaseUrl();
+  const url = new URL(`/api/project/${id}`, baseUrl);
 
-  if (!projectDoc) {
-    return <div className="p-6">Project not found.</div>;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: cookieHeader ? { cookie: cookieHeader } : {},
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Failed to load project ${id}: ${res.status} ${text}`);
   }
 
-  const projectData = JSON.parse(JSON.stringify(projectDoc));
+  const data = await res.json();
 
-  return <ProjectClient initialProject={projectData} />;
+  return <ProjectClient initialProject={data.project ?? data} />;
 }

@@ -25,7 +25,7 @@ const UserSchema = new mongoose.Schema({
       organization: {
       type: Schema.Types.ObjectId,
       ref: "Organization",
-      // required: true, 
+      required: true, 
       },
   createdAt: { type: Date, default: Date.now },
 });

@@ -107,11 +107,12 @@ const DashboardClient = () => {
 
   const renderPage = () => {
     switch (selectedPage) {
-      case "Super Admin":
+      case "Admin Dashboard":
         return <SuperAdmin user={user}/>
       case "Active Projects":
         return (
           <ActiveProjects
+            user={user}
             projects={projects}
             setProjects={setProjects}
             fetchProjects={fetchProjects}

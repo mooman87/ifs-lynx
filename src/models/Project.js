@@ -20,6 +20,11 @@ const SurveySchema = new mongoose.Schema({
 });
 
 const ProjectSchema = new mongoose.Schema({
+  organization: {
+  type: Schema.Types.ObjectId,
+  ref: "Organization",
+  required: true, 
+  },
   campaignName: { type: String, required: true },
   startDate: { type: String, required: true },
   endDate: { type: String, required: true },

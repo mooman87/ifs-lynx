@@ -28,7 +28,6 @@ export default function Home() {
     const data = await res.json();
     if (res.ok) {
       localStorage.setItem('token', data.token);
-      await new Promise((resolve) => setTimeout(resolve, 5000));
       router.push('/dashboard'); 
     } else {
       setLoading(false);
@@ -59,7 +58,7 @@ export default function Home() {
         <div className='input-group'>
         <label>
           Password
-          <input 
+          <input
             type="password"
             name="password"
             value={formData.password}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const CreateUser = () => {
   const [formData, setFormData] = useState({
@@ -10,16 +10,42 @@ const CreateUser = () => {
     password: "",
     role: "Canvasser",
   });
+
+  const [orgs, setOrgs] = useState([]);
+  const [loadingOrgs, setLoadingOrgs] = useState(true);
+
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState(""); 
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     let timer;
-    if (successMessage) {
-      timer = setTimeout(() => setSuccessMessage(""), 3000); 
-    }
-    return () => clearTimeout(timer); 
+    if (successMessage) timer = setTimeout(() => setSuccessMessage(""), 3000);
+    return () => clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        setError("");
+        setLoadingOrgs(true);
+
+        const res = await fetch("/api/org", { credentials: "include" });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.message || "Failed to load organizations");
+
+        const list = Array.isArray(data) ? data : Array.isArray(data.organizations) ? data.organizations : [];
+        setOrgs(list);
+      } catch (err) {
+        setError(err.message || "Failed to load organizations");
+        setOrgs([]);
+      } finally {
+        setLoadingOrgs(false);
+      }
+    };
+
+    fetchOrgs();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -27,11 +53,13 @@ const CreateUser = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); 
-    setSuccessMessage(""); 
+    setError("");
+    setSuccessMessage("");
+
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(formData),
     });
 
@@ -55,8 +83,13 @@ const CreateUser = () => {
   return (
     <div className="widget">
       <span className="font-bold text-2xl">Create User</span>
+
       {error && <p className="text-red-500">{error}</p>}
-      {successMessage && <p className="text-green-500 transition-opacity duration-300">{successMessage}</p>}
+      {successMessage && (
+        <p className="text-green-500 transition-opacity duration-300">
+          {successMessage}
+        </p>
+      )}
 
       <div className="content">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -74,14 +107,30 @@ const CreateUser = () => {
 
           <div>
             <label className="block text-gray-700">Organization</label>
-            <input
-              type="organization"
+            <select
               name="organization"
               value={formData.organization}
               onChange={handleChange}
               required
+              disabled={loadingOrgs}
               className="w-full rounded-md border border-gray-300 p-2 text-sm"
-            />
+            >
+              <option value="">
+                {loadingOrgs ? "Loading organizations..." : "Select organization"}
+              </option>
+
+              {orgs.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} {org.slug ? `(${org.slug})` : ""}
+                </option>
+              ))}
+            </select>
+
+            {!loadingOrgs && orgs.length === 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                No organizations found. Create one first.
+              </p>
+            )}
           </div>
 
           <div>

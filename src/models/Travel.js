@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import { Schema } from 'mongoose';
 
 const TravelSchema = new mongoose.Schema({
+  organization: {
+  type: Schema.Types.ObjectId,
+  ref: "Organization",
+  required: true, 
+  },
   employee: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
   flights: [{
     airline: String,
