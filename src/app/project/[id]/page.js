@@ -2,8 +2,16 @@
 import { headers } from "next/headers";
 import ProjectClient from "./ProjectClient";
 
-function getBaseUrl() {
+function getBaseUrl(h) {
+  const proto = h.get("x-forwarded-proto") || "https";
+  const host = h.get("x-forwarded-host") || h.get("host");
+
+  if (host) return `${proto}://${host}`;
+
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+  if (process.env.URL) return process.env.URL; 
+  if (process.env.DEPLOY_PRIME_URL) return process.env.DEPLOY_PRIME_URL;
+
   return "http://localhost:3000";
 }
 
