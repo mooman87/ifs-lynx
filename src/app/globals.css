@@ -38,3 +38,13 @@ a {
 .lynx-bg {
   background: linear-gradient(165deg, #6366f1, #a855f7)
 }
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1.5s ease forwards;
+}

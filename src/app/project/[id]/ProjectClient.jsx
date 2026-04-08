@@ -32,15 +32,34 @@ const isoDay = (d) => {
 const getProjectId = (p) => p?.id || p?._id || null;
 const getEmployeeId = (e) => e?.id || e?._id || null;
 
+const PLAN_RANK = {
+  citizen: 0,
+  coalition: 1,
+  command_center: 2,
+};
+
+const normalizePlan = (value) => {
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  if (raw === "commandcenter") return "command_center";
+  if (raw === "command-center") return "command_center";
+  if (raw === "command_center") return "command_center";
+  if (raw === "coalition") return "coalition";
+  return "citizen";
+};
+
 const tabs = [
-  { id: "overview", label: "Overview" },
-  { id: "canvassing", label: "Canvassing" },
-  { id: "staff", label: "Staff & Scheduling" },
-  { id: "logistics", label: "Logistics" },
-  { id: "survey", label: "Survey & Script" },
-  { id: "fundraising", label: "Fundraising" },
-  { id: "comms", label: "Comms" },
-  { id: "blackbox", label: "BlackBox" },
+  { id: "overview", label: "Overview", minPlan: "citizen" },
+  { id: "canvassing", label: "Canvassing", minPlan: "citizen" },
+  { id: "staff", label: "Staff & Scheduling", minPlan: "citizen" },
+  { id: "logistics", label: "Logistics", minPlan: "citizen" },
+  { id: "survey", label: "Survey & Script", minPlan: "citizen" },
+  { id: "fundraising", label: "Fundraising", minPlan: "coalition" },
+  { id: "comms", label: "Comms", minPlan: "coalition" },
+  { id: "blackbox", label: "BlackBox", minPlan: "command_center" },
 ];
 
 const ProjectClient = ({ initialProject, project: projectProp }) => {
@@ -51,6 +70,9 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
   const [project, setProject] = useState(initialProject ?? projectProp ?? null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
+
+  const [orgPlan, setOrgPlan] = useState("citizen");
+  const [orgPlanLoading, setOrgPlanLoading] = useState(true);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({});
@@ -67,6 +89,64 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
 
   const projectId = useMemo(() => getProjectId(project), [project]);
   const routeId = useMemo(() => params?.id, [params]);
+
+  const getPlanRank = (plan) => PLAN_RANK[normalizePlan(plan)] ?? 0;
+
+  const canAccessTab = (tabId, plan = orgPlan) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return true;
+    return getPlanRank(plan) >= getPlanRank(tab.minPlan);
+  };
+
+  const getLockedReason = (tabId) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return "";
+
+    const required = normalizePlan(tab.minPlan);
+    if (required === "command_center") {
+      return "Available on Command Center";
+    }
+    if (required === "coalition") {
+      return "Available on Coalition or higher";
+    }
+    return "";
+  };
+
+  const refreshOrgPlan = async () => {
+    try {
+      setOrgPlanLoading(true);
+
+      const res = await fetch("/api/org", {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data?.message || "Error fetching organization.");
+
+      const org =
+        data?.organization ||
+        data?.org ||
+        data?.organizations?.[0] ||
+        data?.organizations_by_pk ||
+        data;
+
+      const detectedPlan =
+        org?.plan ||
+        org?.tier ||
+        org?.subscription_tier ||
+        org?.billing_tier ||
+        "citizen";
+
+      setOrgPlan(normalizePlan(detectedPlan));
+    } catch (err) {
+      console.error("Error fetching org plan:", err);
+      setOrgPlan("citizen");
+    } finally {
+      setOrgPlanLoading(false);
+    }
+  };
 
   const refreshProject = async () => {
     try {
@@ -135,6 +215,7 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
 
   useEffect(() => {
     refreshProject();
+    refreshOrgPlan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
 
@@ -600,7 +681,66 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     }
   };
 
+  const renderLockedTab = (tabId) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    const reason = getLockedReason(tabId);
+
+    return (
+      <div className="rounded-3xl border border-purple-200 bg-white p-8 shadow-sm">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EEEDFE] text-[#3C3489]">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M7 10V8a5 5 0 0 1 10 0v2"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <rect
+              x="5"
+              y="10"
+              width="14"
+              height="10"
+              rx="2"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+          </svg>
+        </div>
+
+        <h3 className="mb-2 text-center text-lg font-semibold text-gray-900">
+          {tab?.label || "This module"} is locked
+        </h3>
+
+        <p className="mx-auto max-w-2xl text-center text-sm text-gray-500">
+          Your organization is currently on the{" "}
+          <span className="font-semibold text-gray-700">
+            {normalizePlan(orgPlan)
+              .replace(/_/g, " ")
+              .replace(/\b\w/g, (m) => m.toUpperCase())}
+          </span>{" "}
+          tier. {reason}.
+        </p>
+
+        <div className="mt-5 flex justify-center">
+          <span className="inline-flex rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-3 py-1.5 text-xs font-semibold text-[#3C3489]">
+            Upgrade required
+          </span>
+        </div>
+      </div>
+    );
+  };
+
   const renderTabContent = () => {
+    if (!orgPlanLoading && !canAccessTab(activeTab)) {
+      return renderLockedTab(activeTab);
+    }
     switch (activeTab) {
       case "canvassing":
         return (
@@ -860,17 +1000,53 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
           <div className="flex items-center gap-1 min-w-max">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
+              const isLocked = !orgPlanLoading && !canAccessTab(tab.id);
+
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                  type="button"
+                  onClick={() => {
+                    if (isLocked) return;
+                    setActiveTab(tab.id);
+                  }}
+                  title={isLocked ? getLockedReason(tab.id) : tab.label}
+                  className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
                     isActive
                       ? "border-purple-600 text-purple-700"
                       : "border-transparent text-gray-500 hover:text-gray-900"
-                  }`}
+                  } ${isLocked ? "cursor-not-allowed opacity-70" : ""}`}
                 >
-                  {tab.label}
+                  <span>{tab.label}</span>
+
+                  {isLocked ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-gray-400"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M7 10V8a5 5 0 0 1 10 0v2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <rect
+                        x="5"
+                        y="10"
+                        width="14"
+                        height="10"
+                        rx="2"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                      />
+                    </svg>
+                  ) : null}
                 </button>
               );
             })}
