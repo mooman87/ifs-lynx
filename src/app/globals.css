@@ -38,8 +38,3 @@ a {
 .lynx-bg {
   background: linear-gradient(165deg, #6366f1, #a855f7)
 }
-
-button.logout-btn {
-  background-color: rgb(255, 65, 65) !important;
-  color: white !important;
-}

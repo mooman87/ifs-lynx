@@ -1,45 +1,73 @@
-
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useMemo, useEffect } from "react";
 
-const DateSelector = ({ dateRange, selectedDate, setSelectedDate }) => {
-  const containerRef = useRef(null);
+const sameDay = (a, b) => {
+  if (!a || !b) return false;
+  return new Date(a).toDateString() === new Date(b).toDateString();
+};
+
+const formatCompact = (date) => {
+  if (!date) return "No date selected";
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(date));
+};
+
+const DateSelector = ({ dateRange = [], selectedDate, setSelectedDate }) => {
+  const selectedIndex = useMemo(() => {
+    if (!selectedDate || !Array.isArray(dateRange)) return -1;
+    return dateRange.findIndex((date) => sameDay(date, selectedDate));
+  }, [dateRange, selectedDate]);
+
+  const goToDateByOffset = (offset) => {
+    if (!Array.isArray(dateRange) || dateRange.length === 0) return;
+
+    if (selectedIndex === -1) {
+      setSelectedDate(dateRange[0]);
+      return;
+    }
+
+    const nextIndex = selectedIndex + offset;
+    if (nextIndex < 0 || nextIndex >= dateRange.length) return;
+
+    setSelectedDate(dateRange[nextIndex]);
+  };
 
   useEffect(() => {
-    if (containerRef.current) {
-      const selectedElement = containerRef.current.querySelector(".selected");
-      if (selectedElement) {
-        selectedElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-      }
+    if (!selectedDate && Array.isArray(dateRange) && dateRange.length > 0) {
+      setSelectedDate(dateRange[0]);
     }
-  }, [selectedDate]);
-
+  }, [selectedDate, dateRange, setSelectedDate]);
   return (
-    <div className="bg-white rounded shadow p-4">
-      <h3 className="text-lg font-semibold mb-2">Select a Date</h3>
-      <div
-        ref={containerRef}
-        className="flex overflow-x-auto space-x-2 pb-2 scroll-smooth"
-        style={{ scrollSnapType: "x mandatory" }}
-      >
-        {dateRange.map((date, index) => {
-          const isSelected =
-            selectedDate?.toDateString() === date.toDateString();
-          return (
-            <button
-              key={index}
-              onClick={() => setSelectedDate(date)}
-              className={`px-4 py-2 text-sm rounded-lg transition-all whitespace-nowrap ${
-                isSelected
-                  ? "bg-indigo-600 text-white font-bold selected"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-              style={{ scrollSnapAlign: "center" }}
-            >
-              {date.toDateString()}
-            </button>
-          );
-        })}
+    <div className="mb-4">
+      <div className="flex items-center gap-3 rounded-[18px] border border-black/10 bg-white px-4 py-3 shadow-sm">
+        <button
+          type="button"
+          onClick={() => goToDateByOffset(-1)}
+          disabled={selectedIndex <= 0}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-black/10 text-sm text-[#888780] transition hover:bg-[#f1efe8] disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous date"
+        >
+          &#8249;
+        </button>
+
+        <div className="min-w-[92px] text-center text-[13px] font-medium text-[#1a1a1a]">
+          {formatCompact(selectedDate)}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => goToDateByOffset(1)}
+          disabled={
+            selectedIndex === -1 || selectedIndex >= dateRange.length - 1
+          }
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-black/10 text-sm text-[#888780] transition hover:bg-[#f1efe8] disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next date"
+        >
+          &#8250;
+        </button>
       </div>
     </div>
   );

@@ -38,38 +38,6 @@
 }
 
 
-
-/* log out button styles, will eventually move with the button itself */
-
-.logout-btn {
-  /* Reset system appearance */
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  appearance: none !important;
-  
-  /* Remove any default background images and accent colors */
-  background-image: none !important;
-  accent-color: unset !important;
-
-  /* Force your desired styles */
-  background-color: rgb(255, 65, 65) !important;
-  color: white !important;
-  font-size: 16px;  /* Ensure a consistent base font size */
-  padding: 0;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 45px;
-  height: 45px;
-  border-radius: 50%;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  transition-duration: 0.3s;
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.199);
-}
-
 /* plus sign */
 .out {
   width: 100%;
@@ -88,48 +56,23 @@
 }
 /* text */
 .text {
-  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   right: 0%;
   width: 0%;
-  opacity: 0;
   color: white;
   font-size: 1em;
   font-weight: 600;
   transition-duration: .3s;
 }
-/* hover effect on button width */
-.logout-btn:hover {
-  width: 125px;
-  border-radius: 40px;
-  transition-duration: .3s;
-}
 
-.logout-btn:hover .out {
-  width: 30%;
-  transition-duration: .3s;
-  padding-left: 20px;
-}
-/* hover effect button's text */
-.logout-btn:hover .text {
-  opacity: 1;
-  width: 70%;
-  transition-duration: .3s;
-  padding-right: 10px;
-}
-/* button click effect*/
-.logout-btn:active {
-  transform: translate(2px ,2px);
-}
-
-.logout-btn .out svg {
+.out svg {
   background-color: rgb(255, 65, 65) !important;
   width: 17px !important;
   height: auto;
 }
 
-.logout-btn::-moz-focus-inner {
-  border: 0;
-}
  /* resource grid container */
 .grid-container {
   display: grid;
@@ -137,7 +80,6 @@
   gap: 25px;
   justify-content: center;
 }
-
 
 .card {
   width: 190px;

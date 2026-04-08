@@ -1,45 +1,9 @@
-// src/app/api/employee/assign/route.js
 import { NextResponse } from "next/server";
-import { withUser } from "@/utils/auth";
+import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
 
 const PROJECT_CTX = `
 query ProjectCtx($id: uuid!) {
-  projects_by_pk(id: $id) {
-    id
-    organization_id
-  }
-}
-`;
-
-const EMPLOYEE_CTX = `
-query EmployeeCtx($id: uuid!) {
-  employees_by_pk(id: $id) {
-    id
-    organization_id
-    first_name
-    last_name
-    email
-  }
-}
-`;
-
-const ASSIGN = `
-mutation Assign($objects: [project_employees_insert_input!]!) {
-  insert_project_employees(
-    objects: $objects,
-    on_conflict: {
-      constraint: project_employees_project_id_employee_id_key,
-      update_columns: []
-    }
-  ) {
-    affected_rows
-  }
-}
-`;
-
-const PROJECT_WITH_ASSIGNED = `
-query ProjectWithAssigned($id: uuid!) {
   projects_by_pk(id: $id) {
     id
     organization_id
@@ -49,20 +13,77 @@ query ProjectWithAssigned($id: uuid!) {
     doors_remaining
     total_doors_knocked
     state_director
-
-    project_employees(distinct_on: employee_id) {
-      employee {
+    project_staff(distinct_on: staff_id) {
+      staff_id
+      staff {
         id
         first_name
         last_name
+        full_name
         email
+        username
+        org_role
+        staff_type
+        can_login
+        is_active
       }
     }
   }
 }
 `;
 
-function toMongoishProject(p) {
+const STAFF_CTX = `
+query StaffCtx($id: uuid!) {
+  staff_by_pk(id: $id) {
+    id
+    organization_id
+    first_name
+    last_name
+    full_name
+    email
+    username
+    org_role
+    staff_type
+    can_login
+    is_active
+  }
+}
+`;
+
+const ASSIGN = `
+mutation Assign($objects: [project_staff_insert_input!]!) {
+  insert_project_staff(
+    objects: $objects,
+    on_conflict: {
+      constraint: project_employees_project_id_employee_id_key
+      update_columns: []
+    }
+  ) {
+    affected_rows
+  }
+}
+`;
+
+function toStaffShape(s) {
+  if (!s) return null;
+
+  return {
+    _id: s.id,
+    id: s.id,
+    firstName: s.first_name ?? "",
+    lastName: s.last_name ?? "",
+    fullName:
+      s.full_name || [s.first_name, s.last_name].filter(Boolean).join(" "),
+    email: s.email ?? null,
+    username: s.username ?? null,
+    role: s.org_role ?? null,
+    staffType: s.staff_type ?? "employee",
+    canLogin: s.can_login ?? true,
+    isActive: s.is_active ?? true,
+  };
+}
+
+function toProjectShape(p) {
   if (!p) return null;
 
   return {
@@ -75,80 +96,101 @@ function toMongoishProject(p) {
     doorsRemaining: p.doors_remaining ?? 0,
     totalDoorsKnocked: p.total_doors_knocked ?? 0,
     stateDirector: p.state_director ?? "",
-
-    assignedEmployees: (p.project_employees || [])
-      .map((pe) => pe.employee)
+    assignedEmployees: (p.project_staff || [])
+      .map((ps) => ps.staff)
       .filter(Boolean)
-      .map((e) => ({
-        _id: e.id,
-        id: e.id,
-        firstName: e.first_name,
-        lastName: e.last_name,
-        email: e.email,
-      })),
+      .map(toStaffShape),
   };
 }
 
 export const POST = withUser(async (request, user) => {
   try {
-    const { projectId, employeeId } = await request.json();
+    const { projectId, staffId, employeeId } = await request.json();
+    const resolvedStaffId = staffId || employeeId;
 
-    if (!projectId || !employeeId) {
+    if (!projectId || !resolvedStaffId) {
       return NextResponse.json(
-        { message: "Missing projectId or employeeId" },
-        { status: 400 }
+        { message: "Missing projectId or staffId" },
+        { status: 400 },
       );
     }
 
-    const isSuperAdmin = user.role === "Super Admin";
-
-    // fetch project + employee orgs
-    const projData = await hasuraFetch(PROJECT_CTX, { id: projectId }, { admin: true });
+    const projData = await hasuraFetch(
+      PROJECT_CTX,
+      { id: projectId },
+      { admin: true },
+    );
     const proj = projData.projects_by_pk;
-    if (!proj) return NextResponse.json({ message: "Project not found" }, { status: 404 });
 
-    const empData = await hasuraFetch(EMPLOYEE_CTX, { id: employeeId }, { admin: true });
-    const emp = empData.employees_by_pk;
-    if (!emp) return NextResponse.json({ message: "Employee not found" }, { status: 404 });
-
-    // org gate: employee + project must match user's org (unless SA)
-    if (!isSuperAdmin) {
-      const userOrg = user.organization?.id;
-      if (!userOrg || proj.organization_id !== userOrg || emp.organization_id !== userOrg) {
-        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-      }
-    } else {
-      // even for SA, keep project/employee org consistent
-      if (proj.organization_id !== emp.organization_id) {
-        return NextResponse.json(
-          { message: "Employee and Project must belong to the same organization" },
-          { status: 400 }
-        );
-      }
+    if (!proj) {
+      return NextResponse.json(
+        { message: "Project not found" },
+        { status: 404 },
+      );
     }
 
-    // ✅ IMPORTANT FIX: variable name + array type must match ($objects: [...])
+    const canManage = await canManageProject(projectId, user);
+    if (!canManage) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const staffData = await hasuraFetch(
+      STAFF_CTX,
+      { id: resolvedStaffId },
+      { admin: true },
+    );
+    const staff = staffData.staff_by_pk;
+
+    if (!staff) {
+      return NextResponse.json(
+        { message: "Staff member not found" },
+        { status: 404 },
+      );
+    }
+
+    if (
+      proj.organization_id !== staff.organization_id &&
+      user.role !== "Super Admin"
+    ) {
+      return NextResponse.json(
+        {
+          message:
+            "Staff member and project must belong to the same organization",
+        },
+        { status: 400 },
+      );
+    }
+
     await hasuraFetch(
       ASSIGN,
-      { objects: [{ project_id: projectId, employee_id: employeeId }] },
-      { admin: true }
+      { objects: [{ project_id: projectId, staff_id: resolvedStaffId }] },
+      { admin: true },
     );
 
-    // return refreshed project
-    const refreshed = await hasuraFetch(PROJECT_WITH_ASSIGNED, { id: projectId }, { admin: true });
+    const refreshed = await hasuraFetch(
+      PROJECT_CTX,
+      { id: projectId },
+      { admin: true },
+    );
 
     return NextResponse.json(
       {
-        message: "Employee assigned successfully",
-        project: toMongoishProject(refreshed.projects_by_pk),
+        message: "Staff member assigned successfully",
+        project: toProjectShape(refreshed.projects_by_pk),
+        employee: staff
+          ? {
+              ...toStaffShape(staff),
+              assignedProjects: [],
+            }
+          : null,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (err) {
     console.error("POST /api/employee/assign error:", err);
     return NextResponse.json(
       { message: "Server error", error: err.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });

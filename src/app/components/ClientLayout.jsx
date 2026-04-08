@@ -2,10 +2,19 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/app/components/Sidebar";
-import { DashboardProvider, useDashboard } from "@/app/context/DashboardContext";
+import {
+  DashboardProvider,
+  useDashboard,
+} from "@/app/context/DashboardContext";
+
+const PUBLIC_PATHS = new Set(["/", "/register"]);
+
+function isPublicPath(pathname) {
+  return PUBLIC_PATHS.has(pathname);
+}
 
 function AuthWrapper({ children }) {
-  const { setUser, selectedPage, setSelectedPage } = useDashboard(); 
+  const { setUser } = useDashboard();
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -14,8 +23,10 @@ function AuthWrapper({ children }) {
     let cancelled = false;
 
     const checkAuth = async () => {
-      if (pathname === "/") {
-        setIsAuthenticated(true);
+      if (isPublicPath(pathname)) {
+        if (!cancelled) {
+          setIsAuthenticated(true);
+        }
         return;
       }
 
@@ -35,13 +46,6 @@ function AuthWrapper({ children }) {
 
         setUser(data.user);
         setIsAuthenticated(true);
-
-        if (
-          data.user.role === "Super Admin" &&
-          selectedPage === "Active Projects"
-        ) {
-          setSelectedPage("Super Admin");
-        }
       } catch (error) {
         console.error("Auth check error:", error);
         if (!cancelled) {
@@ -56,16 +60,18 @@ function AuthWrapper({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router, setUser, selectedPage, setSelectedPage]);
+  }, [pathname, router, setUser]);
 
-  if (pathname !== "/" && isAuthenticated === null) return null;
+  if (!isPublicPath(pathname) && isAuthenticated === null) {
+    return null;
+  }
 
   return children;
 }
 
 function Shell({ children }) {
   const pathname = usePathname();
-  const hideSidebar = pathname === "/";
+  const hideSidebar = isPublicPath(pathname);
 
   if (hideSidebar) {
     return children;

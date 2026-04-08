@@ -1,90 +1,118 @@
-"use client"
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import "../styles/login.css";
 
 export default function Home() {
   const router = useRouter();
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
+    identifier: "",
+    password: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  const handleChange = e => {
+
+  const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-  
-  const handleSubmit = async e => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
     });
     const data = await res.json();
     if (res.ok) {
-      localStorage.setItem('token', data.token);
-      router.push('/dashboard'); 
+      localStorage.setItem("token", data.token);
+      router.push("/dashboard");
     } else {
       setLoading(false);
-      setError(data.message || 'Something went wrong');
+      setError(data.message || "Something went wrong");
     }
   };
-  
+
   return (
-    <div className='login-page'>
-      <Image height={500} width={500} src='/test.png' alt='lynx logo'/>
-    <div className='form-container'>
-      <h1 className='title'>Login</h1>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <form className='form' onSubmit={handleSubmit}>
-        <div className='input-group'>
-        <label>
-          Username
-          <input 
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            required 
+    <div className="login-page">
+      <div className="login-container">
+        {/* Left panel — brand */}
+        <div className="login-left">
+          <Image
+            src="/test.png"
+            alt="Lynx logo"
+            height={200}
+            width={200}
+            className="login-logo"
           />
-        </label>
+          <p className="login-tagline">
+            Plan, manage, and execute campaigns at any scale.
+          </p>
         </div>
-        <br />
-        <div className='input-group'>
-        <label>
-          Password
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            required 
-          />
-        </label>
-        </div>
-        <br />
-        <button type="submit" className='sign lynx-bg'>{loading === true ? 
-          <div className="loader-card">
-            <div className="loader">
-              <p>loading</p>
-              <div className="words">
-                <span className="word">projects</span>
-                <span className="word">employees</span>
-                <span className="word">resources</span>
-                <span className="word">travel</span>
-                <span className="word">users</span>
-              </div>
+
+        {/* Right panel — form */}
+        <div className="login-right">
+          <div className="login-form-header">
+            <h1 className="login-title">Welcome back</h1>
+            <p className="login-subtitle">Sign in to your organization</p>
+          </div>
+
+          {error && <div className="login-error">{error}</div>}
+
+          <form className="login-form" onSubmit={handleSubmit}>
+            <div className="login-field">
+              <label htmlFor="identifier">Username or email</label>
+              <input
+                id="identifier"
+                type="text"
+                name="identifier"
+                placeholder="Enter your username or email"
+                value={formData.identifier}
+                onChange={handleChange}
+                required
+                autoComplete="identifier"
+              />
             </div>
-          </div> 
-          : "Login"}
-        </button>
-      </form>
-    </div>
+
+            <div className="login-field">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                autoComplete="current-password"
+              />
+              <a href="#" className="login-forgot">
+                Forgot password?
+              </a>
+            </div>
+
+            <button type="submit" className="login-btn">
+              {loading ? "Loading" : "Sign in"}
+            </button>
+          </form>
+
+          <div className="login-divider">
+            <span className="login-divider-line" />
+            <span className="login-divider-text">or</span>
+            <span className="login-divider-line" />
+          </div>
+
+          <button
+            type="button"
+            className="login-contact-btn"
+            onClick={() => router.push("/register")}
+          >
+            Register for access
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

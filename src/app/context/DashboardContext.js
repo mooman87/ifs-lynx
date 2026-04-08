@@ -3,16 +3,23 @@ import { createContext, useContext, useState } from "react";
 
 const DashboardContext = createContext(null);
 
+const getDefaultSelectedPage = (user) =>
+  user?.role === "Super Admin" ? "Admin Dashboard" : "Active Projects";
+
 export const DashboardProvider = ({
   children,
-  initialSelectedPage = "Active Projects",
+  initialSelectedPage,
   initialUser = null,
 }) => {
-  const [selectedPage, setSelectedPage] = useState(initialSelectedPage);
+  const [selectedPage, setSelectedPage] = useState(
+    initialSelectedPage || getDefaultSelectedPage(initialUser),
+  );
   const [user, setUser] = useState(initialUser);
 
   return (
-    <DashboardContext.Provider value={{ selectedPage, setSelectedPage, user, setUser }}>
+    <DashboardContext.Provider
+      value={{ selectedPage, setSelectedPage, user, setUser }}
+    >
       {children}
     </DashboardContext.Provider>
   );

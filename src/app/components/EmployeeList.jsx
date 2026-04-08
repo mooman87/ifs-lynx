@@ -1,26 +1,46 @@
-import { useState } from "react";
+"use client";
+
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboard } from "../context/DashboardContext";
 import CreateEmployeeModal from "./CreateEmployeeModal";
 
-import "../../styles/employeeCard.css";
+const getInitials = (firstName = "", lastName = "") =>
+  `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
 
-const EmployeeList = ({ employees, setEmployees, errorMessage, fetchEmployees }) => {
+const EmployeeList = ({
+  employees = [],
+  setEmployees,
+  errorMessage,
+  fetchEmployees,
+}) => {
   const router = useRouter();
+  const dashboard = useDashboard();
+  const selectedPage = dashboard?.selectedPage ?? "Staff";
+
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [employeeFormData, setEmployeeFormData] = useState({
-    firstName: '', lastName: '', gender: '',
-    dob: '', phone: '', address: '',
-    address2: '', city: '', state: '', 
-    zip: '', email: '', availableStart: '', 
-    role: '', reportsTo: '', homeAirport: '', 
-    altAirport: '', rentalCarEligible: false,
+    firstName: "",
+    lastName: "",
+    gender: "",
+    dob: "",
+    phone: "",
+    address: "",
+    address2: "",
+    city: "",
+    state: "",
+    zip: "",
+    email: "",
+    availableStart: "",
+    role: "",
+    reportsTo: "",
+    homeAirport: "",
+    altAirport: "",
+    rentalCarEligible: false,
   });
 
-  const selectedPage = useDashboard();
-
   const handleEmployeeModalToggle = () => {
-    setIsEmployeeModalOpen(!isEmployeeModalOpen);
+    setIsEmployeeModalOpen((prev) => !prev);
   };
 
   const handleEmployeeChange = (e) => {
@@ -34,79 +54,207 @@ const EmployeeList = ({ employees, setEmployees, errorMessage, fetchEmployees })
   const createEmployee = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/employee', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(employeeFormData)
+      const res = await fetch("/api/employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employeeFormData),
       });
+
       const data = await res.json();
+
       if (res.ok) {
         setEmployees((prev) => [...prev, data.employee]);
         setIsEmployeeModalOpen(false);
         setEmployeeFormData({
-          firstName: '', lastName: '', gender: '', dob: '', phone: '', address: '', address2: '', city: '',
-          state: '', zip: '', email: '', availableStart: '', role: '', reportsTo: '', homeAirport: '', altAirport: '', rentalCarEligible: false,
+          firstName: "",
+          lastName: "",
+          gender: "",
+          dob: "",
+          phone: "",
+          address: "",
+          address2: "",
+          city: "",
+          state: "",
+          zip: "",
+          email: "",
+          availableStart: "",
+          role: "",
+          reportsTo: "",
+          homeAirport: "",
+          altAirport: "",
+          rentalCarEligible: false,
         });
         fetchEmployees();
       } else {
         console.error(data.message);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
     }
   };
 
   const goToEmployeeProfile = (employeeId) => {
-    router.push(`/employee/${employeeId}?selectedPage=${encodeURIComponent(selectedPage)}`);
+    router.push(
+      `/employee/${employeeId}?selectedPage=${encodeURIComponent(selectedPage)}`,
+    );
   };
 
-  const groupedEmployees = employees.reduce((acc, employee) => {
-    const role = employee.role || "Unassigned";
-    if (!acc[role]) {
-      acc[role] = [];
-    }
-    acc[role].push(employee);
-    return acc;
-  }, {});
+  const groupedEmployees = useMemo(() => {
+    return employees.reduce((acc, employee) => {
+      const role = employee.role || "Unassigned";
+      if (!acc[role]) acc[role] = [];
+      acc[role].push(employee);
+      return acc;
+    }, {});
+  }, [employees]);
+
+  const sortedRoles = useMemo(
+    () => Object.keys(groupedEmployees).sort((a, b) => a.localeCompare(b)),
+    [groupedEmployees],
+  );
 
   return (
     <>
-      <div>
-        <div className="flex items-center mb-5 gap-2">
-          <span className="font-bold text-2xl">Employee Profiles</span>
-          <button onClick={handleEmployeeModalToggle} className="add-btn">
-            <span className="text-lg font-semibold">+ Add</span>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Staff Profiles</h1>
+            <p className="text-sm text-gray-500">
+              View staff, group by role, and jump directly into staff records.
+            </p>
+          </div>
+
+          <button
+            onClick={handleEmployeeModalToggle}
+            className="inline-flex items-center justify-center rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6]"
+          >
+            + Add staff
           </button>
         </div>
-        {errorMessage && <p className="text-gray-600">{errorMessage}</p>}
-        {Object.keys(groupedEmployees).sort().map((role) => (
-          <div key={role} className="mb-8">
-            <h2 className="text-xl font-bold mb-4">{role}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {groupedEmployees[role].map((employee) => (
-                <div 
-                  key={employee._id} 
-                  className="card-client p-4 border rounded-lg shadow-md hover:shadow-lg transition cursor-pointer"
-                  onClick={() => goToEmployeeProfile(employee._id)}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="user-picture flex-shrink-0 bg-gray-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" className="svg-icon">
-                        <path d="M224 256c70.7 0 128-57.31 128-128s-57.3-128-128-128C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3C77.61 304 0 381.6 0 477.3c0 19.14 15.52 34.67 34.66 34.67h378.7C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304z" fill="currentColor" />
-                      </svg>
-                    </div>
-                    <div className="flex-grow">
-                      <p className="text-lg font-semibold">{employee.firstName} {employee.lastName}</p>
-                      <p className="text-sm">{employee.phone}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+
+        {errorMessage ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {errorMessage}
           </div>
-        ))}
+        ) : null}
+
+        {sortedRoles.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-10 text-center shadow-sm">
+            <p className="text-base font-semibold text-gray-800">
+              No staff yet
+            </p>
+            <p className="mt-2 text-sm text-gray-500">
+              Add your first staffer to start building out the roster.
+            </p>
+          </div>
+        ) : (
+          sortedRoles.map((role) => (
+            <section key={role} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    {role}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    {groupedEmployees[role].length}{" "}
+                    {groupedEmployees[role].length === 1
+                      ? "staffer"
+                      : "staffers"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Name
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Phone
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Email
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Home Airport
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Rental
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {groupedEmployees[role].map((employee, index) => (
+                        <tr
+                          key={employee._id}
+                          onClick={() => goToEmployeeProfile(employee._id)}
+                          className={`cursor-pointer transition hover:bg-[#f8f7fd] ${
+                            index !== groupedEmployees[role].length - 1
+                              ? "border-b border-gray-100"
+                              : ""
+                          }`}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#CECBF6] text-sm font-semibold text-[#3C3489]">
+                                {getInitials(
+                                  employee.firstName,
+                                  employee.lastName,
+                                )}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-gray-900">
+                                  {employee.firstName} {employee.lastName}
+                                </p>
+                                <p className="truncate text-xs text-gray-500">
+                                  {employee.role || "Unassigned"}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {employee.phone || "—"}
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            <span className="block max-w-[220px] truncate">
+                              {employee.email || "—"}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {employee.homeAirport || "—"}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {employee.rentalCarEligible ? (
+                              <span className="inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700 border border-green-200">
+                                Eligible
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500 border border-gray-200">
+                                Not eligible
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          ))
+        )}
+
         {isEmployeeModalOpen && (
-          <CreateEmployeeModal 
+          <CreateEmployeeModal
             isOpen={isEmployeeModalOpen}
             toggleModal={handleEmployeeModalToggle}
             formData={employeeFormData}

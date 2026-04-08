@@ -1,6 +1,5 @@
-// src/app/api/project/[id]/route.js
 import { NextResponse } from "next/server";
-import { withUser } from "@/utils/auth";
+import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
 
 const PROJECT_BY_PK = `
@@ -20,13 +19,21 @@ const PROJECT_BY_PK = `
       staff_hotel
       survey
 
-      project_employees(distinct_on: employee_id) {
-        employee_id
-        employee {
+      project_staff(distinct_on: staff_id) {
+        staff_id
+        staff {
           id
+          user_id
+          user_legacy_id
           first_name
           last_name
+          full_name
           email
+          username
+          org_role
+          staff_type
+          can_login
+          is_active
           doors_knocked
           doors_knocked_per_day
           contacts_made_per_day
@@ -36,13 +43,21 @@ const PROJECT_BY_PK = `
       project_schedules(order_by: { work_date: asc }) {
         id
         work_date
-        project_schedule_employees {
-          employee_id
-          employee {
+        project_schedule_staff {
+          staff_id
+          staff {
             id
+            user_id
+            user_legacy_id
             first_name
             last_name
+            full_name
             email
+            username
+            org_role
+            staff_type
+            can_login
+            is_active
             doors_knocked
             doors_knocked_per_day
             contacts_made_per_day
@@ -55,7 +70,7 @@ const PROJECT_BY_PK = `
 
 const UPDATE_PROJECT = `
 mutation UpdateProject($id: uuid!, $set: projects_set_input!) {
-  update_projects_by_pk(pk_columns: {id: $id}, _set: $set) {
+  update_projects_by_pk(pk_columns: { id: $id }, _set: $set) {
     id
   }
 }
@@ -63,44 +78,49 @@ mutation UpdateProject($id: uuid!, $set: projects_set_input!) {
 
 const safeObj = (v) => (v && typeof v === "object" ? v : {});
 
-function toMongoishEmployee(e) {
-  if (!e) return null;
-  return {
-    _id: e.id,
-    id: e.id,
-    firstName: e.first_name,
-    lastName: e.last_name,
-    email: e.email,
+function toApiStaff(s) {
+  if (!s) return null;
 
-    // IMPORTANT: these power Production + Charts
-    doorsKnocked: e.doors_knocked ?? 0,
-    doorsKnockedPerDay: safeObj(e.doors_knocked_per_day),
-    contactsMadePerDay: safeObj(e.contacts_made_per_day),
+  return {
+    _id: s.id,
+    id: s.id,
+    userId: s.user_id ?? s.user_legacy_id ?? null,
+    firstName: s.first_name,
+    lastName: s.last_name,
+    fullName:
+      s.full_name || [s.first_name, s.last_name].filter(Boolean).join(" "),
+    email: s.email,
+    username: s.username ?? null,
+    role: s.org_role ?? null,
+    staffType: s.staff_type ?? "employee",
+    canLogin: s.can_login ?? true,
+    isActive: s.is_active ?? true,
+    doorsKnocked: s.doors_knocked ?? 0,
+    doorsKnockedPerDay: safeObj(s.doors_knocked_per_day),
+    contactsMadePerDay: safeObj(s.contacts_made_per_day),
   };
 }
 
-function toMongoishProject(p) {
+function toProjectShape(p) {
   if (!p) return null;
 
-  const assignedEmployees =
-    (p.project_employees || [])
-      .map((pe) => toMongoishEmployee(pe.employee))
-      .filter(Boolean);
+  const assignedEmployees = (p.project_staff || [])
+    .map((ps) => toApiStaff(ps.staff))
+    .filter(Boolean);
 
-  const schedule =
-    (p.project_schedules || []).map((s) => ({
-      id: s.id,
-      date: s.work_date,
-      employees: (s.project_schedule_employees || [])
-        .map((se) => toMongoishEmployee(se.employee))
-        .filter(Boolean),
-    }));
+  const schedule = (p.project_schedules || []).map((s) => ({
+    id: s.id,
+    date: s.work_date,
+    employees: (s.project_schedule_staff || [])
+      .map((ss) => toApiStaff(ss.staff))
+      .filter(Boolean),
+  }));
 
   return {
     _id: p.id,
     id: p.id,
     organization: p.organization_id,
-
+    organizationId: p.organization_id,
     campaignName: p.campaign_name,
     startDate: p.start_date,
     endDate: p.end_date,
@@ -112,29 +132,42 @@ function toMongoishProject(p) {
     managerHotel: p.manager_hotel || null,
     staffHotel: p.staff_hotel || null,
     survey: safeObj(p.survey),
-
     assignedEmployees,
     schedule,
   };
 }
 
-export const GET = withUser(async (_request, _user, ctx) => {
+export const GET = withUser(async (_request, user, ctx) => {
   try {
     const { id } = await ctx.params;
 
     const data = await hasuraFetch(PROJECT_BY_PK, { id }, { admin: true });
-    const p = data.projects_by_pk;
+    const project = data.projects_by_pk;
 
-    if (!p) {
-      return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    if (!project) {
+      return NextResponse.json(
+        { message: "Project not found" },
+        { status: 404 },
+      );
     }
 
-    return NextResponse.json({ project: toMongoishProject(p) }, { status: 200 });
+    const isSameOrg =
+      user.role === "Super Admin" ||
+      user.organization?.id === project.organization_id;
+
+    if (!isSameOrg) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    return NextResponse.json(
+      { project: toProjectShape(project) },
+      { status: 200 },
+    );
   } catch (error) {
     console.error("GET /api/project/[id] error:", error);
     return NextResponse.json(
       { message: "Server error", error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 });
@@ -144,13 +177,15 @@ export const PUT = withUser(async (request, user, ctx) => {
     const { id } = await ctx.params;
     const body = await request.json();
 
-    // fetch once to enforce org gate
     const existing = await hasuraFetch(PROJECT_BY_PK, { id }, { admin: true });
-    const p = existing.projects_by_pk;
-    if (!p) return NextResponse.json({ message: "Not found" }, { status: 404 });
+    const project = existing.projects_by_pk;
 
-    const isSuperAdmin = user.role === "Super Admin";
-    if (!isSuperAdmin && user.organization?.id !== p.organization_id) {
+    if (!project) {
+      return NextResponse.json({ message: "Not found" }, { status: 404 });
+    }
+
+    const canManage = await canManageProject(id, user);
+    if (!canManage) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -168,18 +203,23 @@ export const PUT = withUser(async (request, user, ctx) => {
       survey: body.survey ?? undefined,
     };
 
-    // remove undefined keys (Hasura doesn’t like them)
-    Object.keys(set).forEach((k) => set[k] === undefined && delete set[k]);
+    Object.keys(set).forEach((k) => {
+      if (set[k] === undefined) delete set[k];
+    });
 
     await hasuraFetch(UPDATE_PROJECT, { id, set }, { admin: true });
 
     const refreshed = await hasuraFetch(PROJECT_BY_PK, { id }, { admin: true });
+
     return NextResponse.json(
-      { project: toMongoishProject(refreshed.projects_by_pk) },
-      { status: 200 }
+      { project: toProjectShape(refreshed.projects_by_pk) },
+      { status: 200 },
     );
-  } catch (e) {
-    console.error("PUT /api/project/[id] error:", e);
-    return NextResponse.json({ message: "Server error", error: e.message }, { status: 500 });
+  } catch (error) {
+    console.error("PUT /api/project/[id] error:", error);
+    return NextResponse.json(
+      { message: "Server error", error: error.message },
+      { status: 500 },
+    );
   }
 });

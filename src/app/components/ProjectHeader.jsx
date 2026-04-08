@@ -1,40 +1,44 @@
 "use client";
 import React from "react";
 import { useDashboard } from "@/app/context/DashboardContext";
-import { useRouter } from "next/navigation";
 import jsPDF from "jspdf";
 
-const ProjectHeader = ({ project, getDaysRemaining, setIsEditModalOpen, selectedDate, averageCapacity }) => {
-  const { user } = useDashboard(); // assume user is stored in context
-  const router = useRouter();
+const ProjectHeader = ({
+  project,
+  getDaysRemaining,
+  setIsEditModalOpen,
+  selectedDate,
+  averageCapacity,
+}) => {
+  const { user } = useDashboard();
 
   const generateReport = () => {
     const doc = new jsPDF();
 
-    // Top header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("Nightly Report", 105, 20, { align: "center" });
 
-    // Reporter info
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text("Report by:", 20, 40);
     doc.setFont("helvetica", "normal");
     doc.text(` ${user ? user.fullName : "Unknown Reporter"}`, 41, 40);
 
-
     doc.setFont("helvetica", "bold");
     doc.text("Date:", 20, 50);
     doc.setFont("helvetica", "normal");
     doc.text(` ${selectedDate ? selectedDate.toDateString() : ""}`, 30, 50);
 
-    // Calculate Today's Production values from the project data:
-    const dateKey = selectedDate ? selectedDate.toISOString().split("T")[0] : null;
+    const dateKey = selectedDate
+      ? selectedDate.toISOString().split("T")[0]
+      : null;
     let totalDoors = 0;
     let scheduledEmployeesCount = 0;
     if (project && dateKey && project.schedule) {
-      const scheduleEntry = project.schedule.find((entry) => entry.date === dateKey);
+      const scheduleEntry = project.schedule.find(
+        (entry) => entry.date === dateKey,
+      );
       if (scheduleEntry) {
         scheduledEmployeesCount = scheduleEntry.employees.length;
         totalDoors = project.assignedEmployees.reduce((sum, emp) => {
@@ -43,62 +47,73 @@ const ProjectHeader = ({ project, getDaysRemaining, setIsEditModalOpen, selected
       }
     }
 
-    // Expected doors = averageCapacity * number of scheduled employees
     const expectedDoors = averageCapacity * scheduledEmployeesCount;
-    const projectionPercentage = expectedDoors > 0 ? ((totalDoors / expectedDoors) * 100).toFixed(0) : "0";
-    const avgDoorsPerCanvasser = scheduledEmployeesCount > 0 ? (totalDoors / scheduledEmployeesCount).toFixed(0) : "0";
+    const projectionPercentage =
+      expectedDoors > 0 ? ((totalDoors / expectedDoors) * 100).toFixed(0) : "0";
+    const avgDoorsPerCanvasser =
+      scheduledEmployeesCount > 0
+        ? (totalDoors / scheduledEmployeesCount).toFixed(0)
+        : "0";
 
-    // "Today's Production" Section
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.text("Today's Production", 20, 70);
     doc.setFontSize(12);
-    
+
     let y = 80;
     doc.setFont("helvetica", "bold");
     doc.text("Total Doors:", 20, y);
     doc.setFont("helvetica", "normal");
     doc.text(` ${totalDoors}`, 45, y);
     y += 10;
-    
+
     doc.setFont("helvetica", "bold");
     doc.text("% of Projection:", 20, y);
     doc.setFont("helvetica", "normal");
     doc.text(` ${projectionPercentage}%`, 51, y);
     y += 10;
-    
+
     doc.setFont("helvetica", "bold");
     doc.text("# of Canvassers in Field:", 20, y);
     doc.setFont("helvetica", "normal");
     doc.text(` ${scheduledEmployeesCount}`, 69, y);
     y += 10;
-    
+
     doc.setFont("helvetica", "bold");
     doc.text("Average Doors/Canvasser:", 20, y);
     doc.setFont("helvetica", "normal");
     doc.text(` ${avgDoorsPerCanvasser}`, 73, y);
 
-    // Save the PDF file. You could customize the file name based on project name.
     doc.save(`${project.campaignName || "report"}.pdf`);
   };
-  
+
   return (
-    <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">{project?.campaignName}</h1>
-        <h2 className="text-lg text-gray-600 font-semibold">{getDaysRemaining()}</h2>
-      </div>
-      {user.role === "Super Admin" ? 
-            <button
+    <header className="mt-10 mb-6 rounded-[28px] border border-purple-100 bg-white/90 backdrop-blur px-6 py-6 shadow-sm">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              {getDaysRemaining()}
+            </span>
+          </div>
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900">
+              {project?.campaignName}
+            </h1>
+          </div>
+        </div>
+
+        {user?.role === "Super Admin" ? (
+          <button
             onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center mt-4 md:mt-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-semibold"
+            className="inline-flex items-center gap-2 rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6]"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="mr-2"
               viewBox="0 0 24 24"
-              width={20}
-              height={20}
+              width={18}
+              height={18}
               fill="none"
             >
               <path
@@ -117,18 +132,38 @@ const ProjectHeader = ({ project, getDaysRemaining, setIsEditModalOpen, selected
             </svg>
             Edit Project
           </button>
-          :
+        ) : (
           <button
-              onClick={generateReport}
-              className="flex items-center mt-4 md:mt-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-semibold"
+            onClick={generateReport}
+            className="inline-flex items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-semibold text-purple-700 hover:bg-purple-100 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width={18}
+              height={18}
+              fill="none"
+              className="mr-2"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={20} height={20} color={"#ffffff"} fill={"none"}>
-                <path d="M11 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V10C2 6.22876 2 4.34315 3.17157 3.17157C4.34315 2 6.22876 2 10 2H12C15.7712 2 17.6569 2 18.8284 3.17157C20 4.34315 20 6.22876 20 10V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M17.4069 14.4036C17.6192 13.8655 18.3808 13.8655 18.5931 14.4036L18.6298 14.4969C19.1482 15.8113 20.1887 16.8518 21.5031 17.3702L21.5964 17.4069C22.1345 17.6192 22.1345 18.3808 21.5964 18.5931L21.5031 18.6298C20.1887 19.1482 19.1482 20.1887 18.6298 21.5031L18.5931 21.5964C18.3808 22.1345 17.6192 22.1345 17.4069 21.5964L17.3702 21.5031C16.8518 20.1887 15.8113 19.1482 14.4969 18.6298L14.4036 18.5931C13.8655 18.3808 13.8655 17.6192 14.4036 17.4069L14.4969 17.3702C15.8113 16.8518 16.8518 15.8113 17.3702 14.4969L17.4069 14.4036Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M7 7H15M7 11.5H15M7 16H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Generate Report
-            </button>}
+              <path
+                d="M11 21H10C6.22876 21 4.34315 21 3.17157 19.8284C2 18.6569 2 16.7712 2 13V10C2 6.22876 2 4.34315 3.17157 3.17157C4.34315 2 6.22876 2 10 2H12C15.7712 2 17.6569 2 18.8284 3.17157C20 4.34315 20 6.22876 20 10V10.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M14 21H18C19.1046 21 20 20.1046 20 19V15M20 15L16.5 18.5M20 15L16.5 11.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Export Nightly Report
+          </button>
+        )}
+      </div>
     </header>
   );
 };

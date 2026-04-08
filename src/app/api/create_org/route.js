@@ -1,7 +1,8 @@
 // app/api/auth/create_org/route.js
 import { NextResponse } from "next/server";
-import { withRole } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
+
+const ALLOWED_ORG_TYPES = ["Vendor", "Campaign", "PAC", "Party", "Demo"];
 
 function slugify(name) {
   return name
@@ -11,7 +12,6 @@ function slugify(name) {
     .replace(/^-+|-+$/g, "");
 }
 
-
 const CHECK_SLUG = `
 query CheckOrgSlug($slug: String!) {
   organizations(where: { slug: { _eq: $slug } }, limit: 1) {
@@ -19,7 +19,6 @@ query CheckOrgSlug($slug: String!) {
   }
 }
 `;
-
 
 const INSERT_ORG = `
 mutation InsertOrg($object: organizations_insert_input!) {
@@ -32,22 +31,21 @@ mutation InsertOrg($object: organizations_insert_input!) {
 }
 `;
 
-export const POST = withRole("Super Admin", async (request) => {
+export async function POST(request) {
   try {
     const { name, orgType } = await request.json();
 
-    if (!name || !orgType) {
+    if (!name?.trim() || !orgType?.trim()) {
       return NextResponse.json(
         { message: "Missing required fields" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const allowedOrgs = ["Vendor", "Campaign", "PAC", "Party", "Demo"];
-    if (!allowedOrgs.includes(orgType)) {
+    if (!ALLOWED_ORG_TYPES.includes(orgType)) {
       return NextResponse.json(
         { message: "Invalid org type" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -55,29 +53,23 @@ export const POST = withRole("Super Admin", async (request) => {
     let slug = baseSlug;
     let counter = 2;
 
-    // eslint-disable-next-line no-await-in-loop
     while (true) {
-      const exists = await hasuraFetch(
-        CHECK_SLUG,
-        { slug },
-        { admin: true }
-      );
+      const exists = await hasuraFetch(CHECK_SLUG, { slug }, { admin: true });
 
-      if (!exists.organizations.length) break;
+      if (!exists.organizations?.length) break;
       slug = `${baseSlug}-${counter++}`;
     }
 
-  
     const result = await hasuraFetch(
       INSERT_ORG,
       {
         object: {
-          name,
+          name: name.trim(),
           slug,
           org_type: orgType,
         },
       },
-      { admin: true }
+      { admin: true },
     );
 
     const org = result.insert_organizations_one;
@@ -92,13 +84,14 @@ export const POST = withRole("Super Admin", async (request) => {
           orgType: org.org_type,
         },
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("Create org error:", error);
+
     return NextResponse.json(
       { message: "Server error", error: error.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
-});
+}

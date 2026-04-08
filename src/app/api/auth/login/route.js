@@ -1,12 +1,20 @@
-// api/auth/login/route.js
+// app/api/auth/login/route.js
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { hasuraFetch } from "@/utils/hasura";
 
 const LOGIN_QUERY = `
-query LoginByUsername($username: String!) {
-  users(where: {username: {_eq: $username}}, limit: 1) {
+query LoginByIdentifier($identifier: String!, $email: String!) {
+  users(
+    where: {
+      _or: [
+        { username: { _eq: $identifier } }
+        { email: { _eq: $email } }
+      ]
+    }
+    limit: 1
+  ) {
     id
     email
     username
@@ -24,33 +32,60 @@ query LoginByUsername($username: String!) {
 }
 `;
 
+function buildAllowedRoles(role) {
+  if (!role) return ["anonymous"];
+  if (role === "Super Admin") return ["Super Admin"];
+  return [role];
+}
+
 export async function POST(request) {
   try {
-    const { username, password } = await request.json();
-    if (!username || !password) {
-      return NextResponse.json({ message: "Missing username or password" }, { status: 400 });
+    const body = await request.json();
+
+    const identifier = body.identifier?.trim();
+    const password = body.password;
+    const email = identifier?.toLowerCase() || "";
+
+    if (!identifier || !password) {
+      return NextResponse.json(
+        { message: "Missing login identifier or password" },
+        { status: 400 },
+      );
     }
 
+    const data = await hasuraFetch(
+      LOGIN_QUERY,
+      { identifier, email },
+      { admin: true },
+    );
 
-    const data = await hasuraFetch(LOGIN_QUERY, { username }, { admin: true });
     const user = data.users?.[0];
 
-    if (!user) return NextResponse.json({ message: "Invalid credentials" }, { status: 400 });
+    if (!user) {
+      return NextResponse.json(
+        { message: "Invalid credentials" },
+        { status: 400 },
+      );
+    }
 
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return NextResponse.json({ message: "Invalid credentials" }, { status: 400 });
+    if (!ok) {
+      return NextResponse.json(
+        { message: "Invalid credentials" },
+        { status: 400 },
+      );
+    }
 
     const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) throw new Error("Missing JWT_SECRET");
+    if (!jwtSecret) {
+      throw new Error("Missing JWT_SECRET");
+    }
 
-    // Hasura JWT claims
     const hasuraClaims = {
       "x-hasura-default-role": user.role,
-      "x-hasura-allowed-roles": [user.role, "Super Admin"].includes(user.role)
-        ? ["Super Admin", user.role]
-        : [user.role],
+      "x-hasura-allowed-roles": buildAllowedRoles(user.role),
       "x-hasura-user-id": user.id,
-      "x-hasura-organization-id": user.organization?.id || null,
+      "x-hasura-organization-id": user.organization?.id || "",
     };
 
     const payload = {
@@ -65,20 +100,25 @@ export async function POST(request) {
             name: user.organization.name,
             slug: user.organization.slug,
             orgType: user.organization.org_type || null,
+            timezone: user.organization.timezone || null,
           }
         : null,
-   
       "https://hasura.io/jwt/claims": hasuraClaims,
     };
 
     const token = await new SignJWT(payload)
       .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
       .setExpirationTime("1d")
       .sign(new TextEncoder().encode(jwtSecret));
 
     const response = NextResponse.json(
-      { message: "Login successful", token, user: payload },
-      { status: 200 }
+      {
+        message: "Login successful",
+        token,
+        user: payload,
+      },
+      { status: 200 },
     );
 
     response.cookies.set("operatorToken", token, {
@@ -86,12 +126,16 @@ export async function POST(request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       path: "/",
-      maxAge: 86400,
+      maxAge: 60 * 60 * 24,
     });
 
     return response;
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json({ message: "Server error", error: error.message }, { status: 500 });
+
+    return NextResponse.json(
+      { message: "Server error", error: error.message },
+      { status: 500 },
+    );
   }
 }

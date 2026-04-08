@@ -15,6 +15,11 @@ import Projections from "@/app/components/Projections";
 import ChartsSection from "@/app/components/ChartsSection";
 import HotelDetails from "@/app/components/HotelDetails";
 import SurveyBuilder from "@/app/components/SurveyBuilder";
+import FundraisingTab from "@/app/components/FundraisingTab";
+import CommsTab from "@/app/components/CommsTab";
+import ProjectMap from "@/app/components/ProjectMap";
+import BlackBox from "@/app/components/BlackBox";
+import ProjectRoleManager from "@/app/components/ProjectRoleManager";
 
 Chart.register(...registerables);
 
@@ -25,8 +30,18 @@ const isoDay = (d) => {
 };
 
 const getProjectId = (p) => p?.id || p?._id || null;
-
 const getEmployeeId = (e) => e?.id || e?._id || null;
+
+const tabs = [
+  { id: "overview", label: "Overview" },
+  { id: "canvassing", label: "Canvassing" },
+  { id: "staff", label: "Staff & Scheduling" },
+  { id: "logistics", label: "Logistics" },
+  { id: "survey", label: "Survey & Script" },
+  { id: "fundraising", label: "Fundraising" },
+  { id: "comms", label: "Comms" },
+  { id: "blackbox", label: "BlackBox" },
+];
 
 const ProjectClient = ({ initialProject, project: projectProp }) => {
   const params = useParams();
@@ -35,12 +50,12 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
 
   const [project, setProject] = useState(initialProject ?? projectProp ?? null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({});
 
   const [file, setFile] = useState(null);
-  const [parsedData, setParsedData] = useState([]);
   const [matchedData, setMatchedData] = useState([]);
 
   const [selectedDate, setSelectedDate] = useState(null);
@@ -53,9 +68,6 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
   const projectId = useMemo(() => getProjectId(project), [project]);
   const routeId = useMemo(() => params?.id, [params]);
 
-  // ----------------------------
-  // Fetch / refresh
-  // ----------------------------
   const refreshProject = async () => {
     try {
       const id = routeId || projectId;
@@ -69,19 +81,17 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
       if (!res.ok) throw new Error(data?.message || "Error fetching project.");
 
       const p = data.project ?? data;
-
-      // Coerce start/end into Date objects for DateSelector + range building
       const start = p?.startDate ? new Date(p.startDate) : null;
       const end = p?.endDate ? new Date(p.endDate) : null;
 
       const hydrated = {
         ...p,
-        startDate: start && !Number.isNaN(start.getTime()) ? start : p?.startDate,
+        startDate:
+          start && !Number.isNaN(start.getTime()) ? start : p?.startDate,
         endDate: end && !Number.isNaN(end.getTime()) ? end : p?.endDate,
       };
 
       setProject(hydrated);
-
       setEditFormData({
         campaignName: hydrated?.campaignName ?? "",
         doorCount: hydrated?.doorCount ?? "",
@@ -92,8 +102,12 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
         staffHotel: hydrated?.staffHotel || {},
       });
 
-      // Build date range + sensible default selectedDate
-      if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      if (
+        start &&
+        end &&
+        !Number.isNaN(start.getTime()) &&
+        !Number.isNaN(end.getTime())
+      ) {
         const dates = [];
         let cur = new Date(start);
         while (cur <= end) {
@@ -108,7 +122,7 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
         else if (today > end) defaultDate = end;
 
         const found = dates.find((d) => isoDay(d) === isoDay(defaultDate));
-        setSelectedDate(found || dates[0] || null);
+        setSelectedDate((prev) => prev ?? found ?? dates[0] ?? null);
       } else {
         setDateRange([]);
         setSelectedDate(null);
@@ -124,9 +138,6 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);
 
-  // ----------------------------
-  // Project meta helpers
-  // ----------------------------
   const durationDays = useMemo(() => {
     if (!project?.startDate || !project?.endDate) return 0;
     const a = new Date(project.startDate);
@@ -142,12 +153,14 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     const startDate = new Date(project.startDate);
     const endDate = new Date(project.endDate);
 
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return "N/A";
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()))
+      return "N/A";
 
     let daysTranspired;
     if (today < startDate) daysTranspired = 0;
     else if (today > endDate) daysTranspired = durationDays;
-    else daysTranspired = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
+    else
+      daysTranspired = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24));
 
     if (startDate > today) {
       return `Project starts in ${Math.ceil((startDate - today) / (1000 * 60 * 60 * 24))} days`;
@@ -156,22 +169,56 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     const timeDiff = endDate - today;
     const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
 
-    return daysRemaining >= 0 && startDate < today ? `Day ${daysTranspired} of ${durationDays}` : "Project Ended";
+    return daysRemaining >= 0 && startDate < today
+      ? `Day ${daysTranspired} of ${durationDays}`
+      : "Project Ended";
   };
 
   const totalExpectedDoorsPerDay =
-    durationDays > 0 && project?.doorsRemaining ? project.doorsRemaining / durationDays : 0;
+    durationDays > 0 && project?.doorsRemaining
+      ? project.doorsRemaining / durationDays
+      : 0;
 
   const averageCapacity = 150;
   const calculatedStaffNeeded =
-    totalExpectedDoorsPerDay > 0 ? Math.ceil(totalExpectedDoorsPerDay / averageCapacity) : 0;
+    totalExpectedDoorsPerDay > 0
+      ? Math.ceil(totalExpectedDoorsPerDay / averageCapacity)
+      : 0;
 
   const calculatedDoorsPerStaff =
-    calculatedStaffNeeded > 0 ? totalExpectedDoorsPerDay / calculatedStaffNeeded : 0;
+    calculatedStaffNeeded > 0
+      ? totalExpectedDoorsPerDay / calculatedStaffNeeded
+      : 0;
 
-  // ----------------------------
-  // Edit project
-  // ----------------------------
+  const selectedDateKey = selectedDate ? isoDay(selectedDate) : null;
+
+  const scheduledEmployeesForSelectedDate = useMemo(() => {
+    if (!selectedDateKey) return [];
+    const entry = project?.schedule?.find(
+      (item) => item?.date === selectedDateKey,
+    );
+    return entry?.employees || [];
+  }, [project?.schedule, selectedDateKey]);
+
+  const todayTotals = useMemo(() => {
+    if (!selectedDateKey) return { doors: 0, contacts: 0, contactRate: 0 };
+
+    const totals = (project?.assignedEmployees || []).reduce(
+      (acc, emp) => {
+        acc.doors += Number(emp?.doorsKnockedPerDay?.[selectedDateKey] || 0);
+        acc.contacts += Number(emp?.contactsMadePerDay?.[selectedDateKey] || 0);
+        return acc;
+      },
+      { doors: 0, contacts: 0 },
+    );
+
+    return {
+      ...totals,
+      contactRate:
+        totals.doors > 0 ? (totals.contacts / totals.doors) * 100 : 0,
+    };
+  }, [project?.assignedEmployees, selectedDateKey]);
+
   const handleEditSubmit = async (updatedFormData) => {
     try {
       const id = getProjectId(project) || routeId;
@@ -195,85 +242,74 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     }
   };
 
-  // ----------------------------
-  // Scheduling
-  // ----------------------------
-const assignEmployeeToDate = async (employee) => {
-  if (!project || !selectedDate) return;
+  const assignEmployeeToDate = async (employee) => {
+    if (!project || !selectedDate) return;
 
-  const pid = project.id || project._id;
-  const eid = employee.id || employee._id;
-  const dateKey = selectedDate.toISOString().slice(0, 10);
+    const pid = project.id || project._id;
+    const eid = employee.id || employee._id;
+    const dateKey = selectedDate.toISOString().slice(0, 10);
 
-  // ---------- optimistic UI update ----------
-  setProject((prev) => {
-    if (!prev) return prev;
+    setProject((prev) => {
+      if (!prev) return prev;
 
-    const prevSchedule = Array.isArray(prev.schedule) ? prev.schedule : [];
-    const existingEntryIdx = prevSchedule.findIndex((e) => e?.date === dateKey);
+      const prevSchedule = Array.isArray(prev.schedule) ? prev.schedule : [];
+      const existingEntryIdx = prevSchedule.findIndex(
+        (e) => e?.date === dateKey,
+      );
 
-    const employeeSlim = {
-      id: eid,
-      _id: eid,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      email: employee.email,
-    };
+      const employeeSlim = {
+        id: eid,
+        _id: eid,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+      };
 
-    // clone schedule
-    const nextSchedule = prevSchedule.map((e) => ({
-      ...e,
-      employees: Array.isArray(e?.employees) ? [...e.employees] : [],
-    }));
+      const nextSchedule = prevSchedule.map((e) => ({
+        ...e,
+        employees: Array.isArray(e?.employees) ? [...e.employees] : [],
+      }));
 
-    if (existingEntryIdx >= 0) {
-      const entry = nextSchedule[existingEntryIdx];
-      const ids = new Set(entry.employees.map((x) => x?.id || x?._id).filter(Boolean));
-      if (!ids.has(eid)) entry.employees.push(employeeSlim);
-    } else {
-      nextSchedule.push({
-        id: `tmp-${dateKey}`, // temporary key until server returns
-        date: dateKey,
-        employees: [employeeSlim],
-      });
-    }
+      if (existingEntryIdx >= 0) {
+        const entry = nextSchedule[existingEntryIdx];
+        const ids = new Set(
+          entry.employees.map((x) => x?.id || x?._id).filter(Boolean),
+        );
+        if (!ids.has(eid)) entry.employees.push(employeeSlim);
+      } else {
+        nextSchedule.push({
+          id: `tmp-${dateKey}`,
+          date: dateKey,
+          employees: [employeeSlim],
+        });
+      }
 
-    return { ...prev, schedule: nextSchedule };
-  });
-
-  // ---------- server write ----------
-  try {
-    const res = await fetch(`/api/project/${pid}/schedule`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ date: dateKey, employeeId: eid }),
+      return { ...prev, schedule: nextSchedule };
     });
 
-    const data = await res.json();
+    try {
+      const res = await fetch(`/api/project/${pid}/schedule`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ date: dateKey, employeeId: eid }),
+      });
 
-    if (res.ok) {
-      // replace optimistic schedule with authoritative schedule
-      if (data?.project) {
-        setProject(data.project);
+      const data = await res.json();
+
+      if (res.ok) {
+        if (data?.project) setProject(data.project);
+        else await refreshProject();
       } else {
+        console.error("Error scheduling employee:", data.message);
         await refreshProject();
       }
-    } else {
-      console.error("Error scheduling employee:", data.message);
-      // rollback to server truth
+    } catch (err) {
+      console.error("Error scheduling employee:", err);
       await refreshProject();
     }
-  } catch (err) {
-    console.error("Error scheduling employee:", err);
-    await refreshProject();
-  }
-};
+  };
 
-
-  // ----------------------------
-  // XLSX parsing: Production upload -> matchedData
-  // ----------------------------
   const handleFileChange = (e) => setFile(e.target.files?.[0] ?? null);
 
   const matchEmployeesWithData = (data) => {
@@ -281,7 +317,9 @@ const assignEmployeeToDate = async (employee) => {
     if (!Array.isArray(assigned) || assigned.length === 0) return;
 
     const matchedResults = data.map((entry) => {
-      const usernameMatch = String(entry.userName || "").match(/^IFS_([^_]+)_([^_]+)$/);
+      const usernameMatch = String(entry.userName || "").match(
+        /^IFS_([^_]+)_([^_]+)$/,
+      );
       if (!usernameMatch) return { ...entry, matchedEmployee: "No match" };
 
       const formattedUserName = usernameMatch[1];
@@ -291,12 +329,17 @@ const assignEmployeeToDate = async (employee) => {
       const match = assigned.find((emp) => {
         const fn = emp?.firstName || "";
         const ln = emp?.lastName || "";
-        return fn.charAt(0).toUpperCase() === firstInitial.toUpperCase() && ln.toLowerCase() === lastName.toLowerCase();
+        return (
+          fn.charAt(0).toUpperCase() === firstInitial.toUpperCase() &&
+          ln.toLowerCase() === lastName.toLowerCase()
+        );
       });
 
       return {
         ...entry,
-        matchedEmployee: match ? `${match.firstName} ${match.lastName}` : "No match",
+        matchedEmployee: match
+          ? `${match.firstName} ${match.lastName}`
+          : "No match",
       };
     });
 
@@ -317,9 +360,15 @@ const assignEmployeeToDate = async (employee) => {
       const sheet = workbook.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      const targetHeadings = ["UserName", "Attempted Doors", "Door Took Surveys"];
+      const targetHeadings = [
+        "UserName",
+        "Attempted Doors",
+        "Door Took Surveys",
+      ];
       const headingRow = data[0] || [];
-      const columnIndices = targetHeadings.map((heading) => headingRow.indexOf(heading));
+      const columnIndices = targetHeadings.map((heading) =>
+        headingRow.indexOf(heading),
+      );
 
       const extractedData = data.slice(1).map((row) => ({
         userName: row[columnIndices[0]] || "N/A",
@@ -327,7 +376,6 @@ const assignEmployeeToDate = async (employee) => {
         contactsMade: Number(row[columnIndices[2]] || 0),
       }));
 
-      setParsedData(extractedData);
       matchEmployeesWithData(extractedData);
       setFile(null);
     };
@@ -340,7 +388,6 @@ const assignEmployeeToDate = async (employee) => {
 
     try {
       const id = getProjectId(project) || routeId;
-
       const res = await fetch(`/api/project/${id}/apply-knocked-doors`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -364,12 +411,6 @@ const assignEmployeeToDate = async (employee) => {
     }
   };
 
-  // ----------------------------
-  // Employee chart data (RESTORED)
-  // Assumes employee API normalization provides:
-  // - emp.doorsKnockedPerDay as object keyed by YYYY-MM-DD
-  // - emp.contactsMadePerDay as object keyed by YYYY-MM-DD
-  // ----------------------------
   const getEmployeeChartData = () => {
     if (!project || !selectedDate) return { labels: [], datasets: [] };
 
@@ -396,7 +437,8 @@ const assignEmployeeToDate = async (employee) => {
       employeeNames.push(`${emp.firstName} ${emp.lastName}`);
       knockedDoorsArr.push(totalDoors);
 
-      const contactRate = totalDoors > 0 ? (totalContacts / totalDoors) * 100 : 0;
+      const contactRate =
+        totalDoors > 0 ? (totalContacts / totalDoors) * 100 : 0;
       contactRateArr.push(Number(contactRate.toFixed(2)));
     });
 
@@ -407,17 +449,17 @@ const assignEmployeeToDate = async (employee) => {
           type: "bar",
           label: "Knocked Doors",
           data: knockedDoorsArr,
-          // keep your styling if you want, but chart.js will render fine either way
-          backgroundColor: "#8884d8",
+          backgroundColor: "#7c3aed",
           yAxisID: "y",
+          borderRadius: 8,
         },
         {
-          type: "bar",
+          type: "line",
           label: "Contact Rate (%)",
           data: contactRateArr,
-          borderColor: "#82ca9d",
+          backgroundColor: "#f59e0b",
           yAxisID: "y1",
-          tension: 0.4,
+          borderRadius: 8,
         },
       ],
     };
@@ -425,28 +467,39 @@ const assignEmployeeToDate = async (employee) => {
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top",
+        labels: { usePointStyle: true, boxWidth: 10 },
+      },
+    },
     scales: {
-      x: { grid: { display: false } },
+      x: {
+        grid: { display: false },
+        ticks: { color: "#6b7280" },
+      },
       y: {
         type: "linear",
         position: "left",
+        beginAtZero: true,
         title: { display: true, text: "Knocked Doors" },
-        grid: { display: false },
+        ticks: { color: "#6b7280" },
+        grid: { color: "rgba(124, 58, 237, 0.08)" },
       },
       y1: {
         type: "linear",
         position: "right",
+        beginAtZero: true,
         grid: { drawOnChartArea: false },
         title: { display: true, text: "Contact Rate (%)" },
-        ticks: { callback: (val) => `${val}%` },
+        ticks: { callback: (val) => `${val}%`, color: "#6b7280" },
       },
     },
   };
 
-  // ----------------------------
-  // XLSX survey responses upload (RESTORED)
-  // ----------------------------
-  const handleResponseFileChange = (e) => setResponseFile(e.target.files?.[0] ?? null);
+  const handleResponseFileChange = (e) =>
+    setResponseFile(e.target.files?.[0] ?? null);
 
   const handleResponseFileUpload = () => {
     if (!responseFile) {
@@ -484,7 +537,9 @@ const assignEmployeeToDate = async (employee) => {
 
   const getResponseChartData = () => {
     const responses =
-      project?.surveyResponses && project.surveyResponses.length > 0 ? project.surveyResponses : parsedResponseData;
+      project?.surveyResponses && project.surveyResponses.length > 0
+        ? project.surveyResponses
+        : parsedResponseData;
 
     const questions = ["1", "2", "3", "4", "5"];
     const responsesByQuestion = {};
@@ -492,20 +547,29 @@ const assignEmployeeToDate = async (employee) => {
 
     (responses || []).forEach((item) => {
       const q = String(item.question || item.QuestionNo || item.Question || "");
-      const resp = String(item.response || item.AnswerCode || item.Response || "");
+      const resp = String(
+        item.response || item.AnswerCode || item.Response || "",
+      );
       if (responsesByQuestion[q] !== undefined) {
         responsesByQuestion[q][resp] = (responsesByQuestion[q][resp] || 0) + 1;
       }
     });
 
     const allOptions = new Set();
-    questions.forEach((q) => Object.keys(responsesByQuestion[q] || {}).forEach((opt) => allOptions.add(opt)));
+    questions.forEach((q) =>
+      Object.keys(responsesByQuestion[q] || {}).forEach((opt) =>
+        allOptions.add(opt),
+      ),
+    );
     const responseOptions = Array.from(allOptions);
 
     const datasets = responseOptions.map((option, idx) => ({
       label: option,
       data: questions.map((q) => responsesByQuestion[q]?.[option] || 0),
-      backgroundColor: ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#888888"][idx % 5],
+      backgroundColor: ["#7c3aed", "#f59e0b", "#14b8a6", "#ec4899", "#64748b"][
+        idx % 5
+      ],
+      borderRadius: 8,
     }));
 
     return { labels: questions, datasets };
@@ -516,7 +580,6 @@ const assignEmployeeToDate = async (employee) => {
 
     try {
       const id = getProjectId(project) || routeId;
-
       const res = await fetch(`/api/project/${id}/apply-responses`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -537,21 +600,253 @@ const assignEmployeeToDate = async (employee) => {
     }
   };
 
-  // ----------------------------
-  // Render
-  // ----------------------------
-  return (
-    <div className="min-h-screen p-6">
-      <div
-        className="absolute top-6 right-9 cursor-pointer"
-        onClick={() => router.push(`/dashboard?selectedPage=${encodeURIComponent(selectedPage)}`)}
-      >
-        <div className="line one"></div>
-        <div className="line two"></div>
-      </div>
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "canvassing":
+        return (
+          <div className="space-y-6">
+            <DateSelector
+              dateRange={dateRange}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+            />
 
-      <div className="max-w-6xl mx-auto">
-        {error ? <p className="text-red-600">{error}</p> : null}
+            <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1.4fr] gap-6 items-start">
+              <div className="space-y-6 min-w-0">
+                <Production
+                  project={project}
+                  selectedDate={selectedDate}
+                  calculatedDoorsPerStaff={calculatedDoorsPerStaff}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <ChartsSection
+                  project={project}
+                  chartRange={chartRange}
+                  setChartRange={setChartRange}
+                  getEmployeeChartData={getEmployeeChartData}
+                  chartOptions={chartOptions}
+                  handleFileChange={handleFileChange}
+                  handleFileUpload={handleFileUpload}
+                  matchedData={matchedData}
+                  applyKnockedDoors={applyKnockedDoors}
+                  handleResponseFileChange={handleResponseFileChange}
+                  handleResponseFileUpload={handleResponseFileUpload}
+                  parsedResponseData={parsedResponseData}
+                  getResponseChartData={getResponseChartData}
+                  applySurveyResponses={applySurveyResponses}
+                />
+              </div>
+            </div>
+
+            <div className="w-full min-w-0">
+              <ProjectMap />
+            </div>
+          </div>
+        );
+
+      case "staff":
+        return (
+          <div className="space-y-6">
+            <DateSelector
+              dateRange={dateRange}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+            />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <ScheduleEmployees
+                project={project}
+                assignEmployeeToDate={assignEmployeeToDate}
+                selectedDate={selectedDate}
+              />
+            </div>
+            <ProjectRoleManager
+              projectId={project.id}
+              staff={project.assignedEmployees || []}
+            />
+          </div>
+        );
+
+      case "logistics":
+        return (
+          <div className="space-y-6">
+            <HotelDetails
+              managerHotel={project?.managerHotel}
+              staffHotel={project?.staffHotel}
+            />
+            <div className="bg-white border border-dashed border-purple-200 rounded-3xl p-8 text-center shadow-sm">
+              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <path
+                    d="M3 10L12 4L21 10V20H3V10Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M9 20V14H15V20"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Logistics workspace
+              </h3>
+              <p className="text-sm text-gray-500 max-w-2xl mx-auto">
+                This tab gives you a clean home for hotels now, with room to add
+                map view, travel, turf, and other operational logistics next
+                without crowding the canvassing workflow.
+              </p>
+            </div>
+          </div>
+        );
+
+      case "survey":
+        return (
+          <div className="space-y-6">
+            <SurveyBuilder
+              projectSurvey={project?.survey}
+              onSurveyUpdate={(survey) =>
+                setProject((prev) => ({ ...prev, survey }))
+              }
+            />
+          </div>
+        );
+      case "fundraising":
+        return (
+          <div className="space-y-6">
+            <FundraisingTab />
+          </div>
+        );
+      case "comms":
+        return (
+          <div className="space-y-6">
+            <CommsTab />
+          </div>
+        );
+      case "blackbox":
+        return (
+          <div className="space-y-6">
+            <BlackBox />
+          </div>
+        );
+
+      case "overview":
+      default:
+        return (
+          <div className="space-y-6">
+            <DateSelector
+              dateRange={dateRange}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+            />
+
+            <Projections
+              durationDays={durationDays}
+              totalExpectedDoorsPerDay={totalExpectedDoorsPerDay}
+              calculatedStaffNeeded={calculatedStaffNeeded}
+              calculatedDoorsPerStaff={calculatedDoorsPerStaff}
+              project={project}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white border border-purple-100 rounded-3xl p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.16em] text-gray-400 mb-2">
+                  Doors today
+                </p>
+                <p className="text-3xl font-bold text-purple-700">
+                  {todayTotals.doors.toLocaleString()}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  For{" "}
+                  {selectedDate
+                    ? selectedDate.toDateString()
+                    : "the selected date"}
+                </p>
+              </div>
+              <div className="bg-white border border-amber-100 rounded-3xl p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.16em] text-gray-400 mb-2">
+                  Contact rate
+                </p>
+                <p className="text-3xl font-bold text-amber-600">
+                  {todayTotals.contactRate.toFixed(0)}%
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Based on doors knocked vs. contacts made
+                </p>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-sm">
+                <p className="text-xs uppercase tracking-[0.16em] text-gray-400 mb-2">
+                  Staff in field
+                </p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {scheduledEmployeesForSelectedDate.length}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Scheduled for the selected date
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1.05fr_1.35fr] gap-6">
+              <Production
+                project={project}
+                selectedDate={selectedDate}
+                calculatedDoorsPerStaff={calculatedDoorsPerStaff}
+              />
+              <ChartsSection
+                project={project}
+                chartRange={chartRange}
+                setChartRange={setChartRange}
+                getEmployeeChartData={getEmployeeChartData}
+                chartOptions={chartOptions}
+                handleFileChange={handleFileChange}
+                handleFileUpload={handleFileUpload}
+                matchedData={matchedData}
+                applyKnockedDoors={applyKnockedDoors}
+                handleResponseFileChange={handleResponseFileChange}
+                handleResponseFileUpload={handleResponseFileUpload}
+                parsedResponseData={parsedResponseData}
+                getResponseChartData={getResponseChartData}
+                applySurveyResponses={applySurveyResponses}
+              />
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="min-h-screen">
+      <button
+        type="button"
+        className="absolute top-6 right-9 h-9 w-9 rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-800 flex items-center justify-center"
+        onClick={() =>
+          router.push(
+            `/dashboard?selectedPage=${encodeURIComponent(selectedPage)}`,
+          )
+        }
+        aria-label="Close project details"
+      >
+        <div className="relative h-4 w-4">
+          <span className="absolute left-0 top-1/2 h-[2px] w-4 -translate-y-1/2 rotate-45 rounded-full bg-current" />
+          <span className="absolute left-0 top-1/2 h-[2px] w-4 -translate-y-1/2 -rotate-45 rounded-full bg-current" />
+        </div>
+      </button>
+
+      <div className="max-w-7xl mx-auto">
+        {error ? <p className="text-red-600 mb-4">{error}</p> : null}
 
         <ProjectHeader
           project={project}
@@ -561,53 +856,28 @@ const assignEmployeeToDate = async (employee) => {
           setIsEditModalOpen={setIsEditModalOpen}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="flex flex-col space-y-6">
-            <DateSelector dateRange={dateRange} selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
-
-            <Production project={project} selectedDate={selectedDate} calculatedDoorsPerStaff={calculatedDoorsPerStaff} />
-
-            <ScheduleEmployees
-              project={project}
-              assignEmployeeToDate={assignEmployeeToDate}
-              selectedDate={selectedDate}
-            />
-
-            <HotelDetails managerHotel={project?.managerHotel} staffHotel={project?.staffHotel} />
-          </div>
-
-          <div className="flex flex-col space-y-6">
-            <Projections
-              durationDays={durationDays}
-              totalExpectedDoorsPerDay={totalExpectedDoorsPerDay}
-              calculatedStaffNeeded={calculatedStaffNeeded}
-              calculatedDoorsPerStaff={calculatedDoorsPerStaff}
-              project={project}
-            />
-
-            <ChartsSection
-              project={project}
-              chartRange={chartRange}
-              setChartRange={setChartRange}
-              getEmployeeChartData={getEmployeeChartData}
-              chartOptions={chartOptions}
-              handleFileChange={handleFileChange}
-              handleFileUpload={handleFileUpload}
-              matchedData={matchedData}
-              applyKnockedDoors={applyKnockedDoors}
-              handleResponseFileChange={handleResponseFileChange}
-              handleResponseFileUpload={handleResponseFileUpload}
-              parsedResponseData={parsedResponseData}
-              getResponseChartData={getResponseChartData}
-              applySurveyResponses={applySurveyResponses}
-            />
+        <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+          <div className="flex items-center gap-1 min-w-max">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${
+                    isActive
+                      ? "border-purple-600 text-purple-700"
+                      : "border-transparent text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <SurveyBuilder
-          projectSurvey={project?.survey}
-          onSurveyUpdate={(survey) => setProject((prev) => ({ ...prev, survey }))}
-        />
+        {renderTabContent()}
       </div>
 
       {isEditModalOpen && (

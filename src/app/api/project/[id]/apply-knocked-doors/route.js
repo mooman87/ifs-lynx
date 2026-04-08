@@ -1,6 +1,5 @@
-// app/api/project/[id]/apply-knocked-doors/route.js
 import { NextResponse } from "next/server";
-import { withUser } from "@/utils/auth";
+import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
 
 /**
@@ -117,9 +116,21 @@ query ProjectRefresh($id: uuid!) {
 `;
 
 function toMongoishProject(p) {
-  const assignedEmployees =
-    (p.project_employees || [])
-      .map((pe) => pe.employee)
+  const assignedEmployees = (p.project_employees || [])
+    .map((pe) => pe.employee)
+    .filter(Boolean)
+    .map((e) => ({
+      _id: e.id,
+      id: e.id,
+      firstName: e.first_name,
+      lastName: e.last_name,
+      email: e.email,
+    }));
+
+  const schedule = (p.project_schedule || []).map((s) => ({
+    date: s.work_date,
+    employees: (s.project_schedule_employees || [])
+      .map((se) => se.employee)
       .filter(Boolean)
       .map((e) => ({
         _id: e.id,
@@ -127,22 +138,8 @@ function toMongoishProject(p) {
         firstName: e.first_name,
         lastName: e.last_name,
         email: e.email,
-      }));
-
-  const schedule =
-    (p.project_schedule || []).map((s) => ({
-      date: s.work_date,
-      employees: (s.project_schedule_employees || [])
-        .map((se) => se.employee)
-        .filter(Boolean)
-        .map((e) => ({
-          _id: e.id,
-          id: e.id,
-          firstName: e.first_name,
-          lastName: e.last_name,
-          email: e.email,
-        })),
-    }));
+      })),
+  }));
 
   return {
     _id: p.id,
@@ -168,20 +165,37 @@ function toMongoishProject(p) {
 
 export const PUT = withUser(async (request, user, { params }) => {
   try {
-    const{ projectId } = params;
+    const { id: projectId } = await params;
     const { selectedDate, matchedData } = await request.json();
 
-    if (!selectedDate || !matchedData || !Array.isArray(matchedData) || matchedData.length === 0) {
-      return NextResponse.json({ message: "Invalid request data" }, { status: 400 });
+    if (
+      !selectedDate ||
+      !matchedData ||
+      !Array.isArray(matchedData) ||
+      matchedData.length === 0
+    ) {
+      return NextResponse.json(
+        { message: "Invalid request data" },
+        { status: 400 },
+      );
     }
 
-    const base = await hasuraFetch(PROJECT_WITH_ASSIGNED_EMPLOYEES, { id: projectId }, { admin: true });
+    const base = await hasuraFetch(
+      PROJECT_WITH_ASSIGNED_EMPLOYEES,
+      { id: projectId },
+      { admin: true },
+    );
     const project = base.projects_by_pk;
 
-    if (!project) return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    if (!project) {
+      return NextResponse.json(
+        { message: "Project not found" },
+        { status: 404 },
+      );
+    }
 
-    const isSuperAdmin = user.role === "Super Admin";
-    if (!isSuperAdmin && user.organization?.id !== project.organization_id) {
+    const canManage = await canManageProject(projectId, user);
+    if (!canManage) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -189,11 +203,9 @@ export const PUT = withUser(async (request, user, { params }) => {
       .map((pe) => pe.employee)
       .filter(Boolean);
 
-    const dateKey = String(selectedDate); 
-
+    const dateKey = String(selectedDate);
     let totalDoorsAdded = 0;
     let totalContactsAdded = 0;
-
 
     const asObj = (v) => (v && typeof v === "object" ? v : {});
 
@@ -202,7 +214,7 @@ export const PUT = withUser(async (request, user, { params }) => {
       if (!fullName) continue;
 
       const matchedEmployee = assignedEmployees.find(
-        (e) => `${e.first_name} ${e.last_name}` === fullName
+        (e) => `${e.first_name} ${e.last_name}` === fullName,
       );
 
       if (!matchedEmployee) continue;
@@ -216,18 +228,16 @@ export const PUT = withUser(async (request, user, { params }) => {
       const existingDoors = Number(doorsMap[dateKey] ?? 0);
       const existingContacts = Number(contactsMap[dateKey] ?? 0);
 
-      // Only increase if new values exceed existing
       if (newDoors > existingDoors) {
         doorsMap[dateKey] = newDoors;
-        totalDoorsAdded += (newDoors - existingDoors);
+        totalDoorsAdded += newDoors - existingDoors;
       }
 
       if (newContacts > existingContacts) {
         contactsMap[dateKey] = newContacts;
-        totalContactsAdded += (newContacts - existingContacts);
+        totalContactsAdded += newContacts - existingContacts;
       }
 
-      // Persist employee updates if anything changed
       const doorsChanged = newDoors > existingDoors;
       const contactsChanged = newContacts > existingContacts;
 
@@ -239,7 +249,7 @@ export const PUT = withUser(async (request, user, { params }) => {
             doorsMap,
             contactsMap,
           },
-          { admin: true }
+          { admin: true },
         );
       }
     }
@@ -252,14 +262,27 @@ export const PUT = withUser(async (request, user, { params }) => {
 
     await hasuraFetch(
       UPDATE_PROJECT_TOTALS,
-      { id: projectId, totalDoors: updatedTotal, doorsRemaining: updatedRemaining },
-      { admin: true }
+      {
+        id: projectId,
+        totalDoors: updatedTotal,
+        doorsRemaining: updatedRemaining,
+      },
+      { admin: true },
     );
 
-    const refreshed = await hasuraFetch(PROJECT_REFRESH, { id: projectId }, { admin: true });
+    const refreshed = await hasuraFetch(
+      PROJECT_REFRESH,
+      { id: projectId },
+      { admin: true },
+    );
     const refreshedProject = refreshed.projects_by_pk;
 
-    const empRes = await hasuraFetch(EMPLOYEES_BY_PROJECT, { projectId }, { admin: true });
+    const empRes = await hasuraFetch(
+      EMPLOYEES_BY_PROJECT,
+      { projectId },
+      { admin: true },
+    );
+
     const employees = (empRes.project_employees || [])
       .map((pe) => pe.employee)
       .filter(Boolean)
@@ -280,10 +303,13 @@ export const PUT = withUser(async (request, user, { params }) => {
         assignedEmployees: employees,
         totals: { totalDoorsAdded, totalContactsAdded },
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Error applying knocked doors:", error);
-    return NextResponse.json({ message: "Server error", error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { message: "Server error", error: error.message },
+      { status: 500 },
+    );
   }
 });
