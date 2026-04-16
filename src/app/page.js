@@ -51,15 +51,13 @@ export default function Home() {
     //     {/* Left panel — brand */}
     //     <div className="login-left">
     //       <Image
-    //         src="/test.png"
+    //         src="/LynxNewLogo.png"
     //         alt="Lynx logo"
-    //         height={200}
-    //         width={200}
+    //         height={500}
+    //         width={500}
     //         className="login-logo"
     //       />
-    //       <p className="login-tagline">
-    //         Plan, manage, and execute campaigns at any scale.
-    //       </p>
+    //       <p className="login-tagline">The campaign manager in your pocket</p>
     //     </div>
 
     //     {/* Right panel — form */}

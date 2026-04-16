@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import CreateEmployeeModal from "@/app/components/CreateEmployeeModal";
 
 const getInitials = (firstName = "", lastName = "") =>
@@ -25,59 +25,67 @@ const EmployeeProfilePage = () => {
   const [error, setError] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({});
+  const searchParams = useSearchParams();
 
   const handleClose = () => {
-    router.push(`/dashboard?selectedPage=Employee%20List`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("selectedPage", "Staff");
+    router.push(`/dashboard?${params.toString()}`);
+  };
+
+  const fetchEmployeeAndProjects = async () => {
+    try {
+      const resEmployee = await fetch(`/api/employee/${id}`);
+      const resProjects = await fetch(`/api/project`);
+      const dataEmployee = await resEmployee.json();
+      const dataProjects = await resProjects.json();
+
+      if (resEmployee.ok && resProjects.ok) {
+        const employeeRecord = dataEmployee.employee;
+        const assignedProjects = employeeRecord.assignedProjects || [];
+
+        setEmployee(employeeRecord);
+
+        setEditFormData({
+          firstName: employeeRecord.firstName,
+          lastName: employeeRecord.lastName,
+          gender: employeeRecord.gender,
+          dob: employeeRecord.dob,
+          phone: employeeRecord.phone,
+          address: employeeRecord.address,
+          address2: employeeRecord.address2,
+          city: employeeRecord.city,
+          state: employeeRecord.state,
+          zip: employeeRecord.zip,
+          email: employeeRecord.email,
+          availableStart: employeeRecord.availableStart,
+          role: employeeRecord.role,
+          reportsTo: employeeRecord.reportsTo,
+          homeAirport: employeeRecord.homeAirport,
+          altAirport: employeeRecord.altAirport,
+          rentalCarEligible: employeeRecord.rentalCarEligible ?? false,
+        });
+
+        const assignedProjectIds = new Set(
+          assignedProjects.map((proj) => proj._id).filter(Boolean),
+        );
+
+        const availableProjects = (dataProjects.projects || []).filter(
+          (proj) => !assignedProjectIds.has(proj._id),
+        );
+
+        setProjects(availableProjects);
+        setError("");
+      } else {
+        setError("Error fetching data.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Error fetching data.");
+    }
   };
 
   useEffect(() => {
-    const fetchEmployeeAndProjects = async () => {
-      try {
-        const resEmployee = await fetch(`/api/employee/${id}`);
-        const resProjects = await fetch(`/api/project`);
-        const dataEmployee = await resEmployee.json();
-        const dataProjects = await resProjects.json();
-
-        if (resEmployee.ok && resProjects.ok) {
-          setEmployee(dataEmployee.employee);
-          setEditFormData({
-            firstName: dataEmployee.employee.firstName,
-            lastName: dataEmployee.employee.lastName,
-            gender: dataEmployee.employee.gender,
-            dob: dataEmployee.employee.dob,
-            phone: dataEmployee.employee.phone,
-            address: dataEmployee.employee.address,
-            address2: dataEmployee.employee.address2,
-            city: dataEmployee.employee.city,
-            state: dataEmployee.employee.state,
-            zip: dataEmployee.employee.zip,
-            email: dataEmployee.employee.email,
-            availableStart: dataEmployee.employee.availableStart,
-            role: dataEmployee.employee.role,
-            reportsTo: dataEmployee.employee.reportsTo,
-            homeAirport: dataEmployee.employee.homeAirport,
-            altAirport: dataEmployee.employee.altAirport,
-            rentalCarEligible: dataEmployee.employee.rentalCarEligible ?? false,
-          });
-
-          const assignedProjectIds = new Set(
-            dataEmployee.employee.assignedProjects.map((proj) => proj._id),
-          );
-
-          const availableProjects = dataProjects.projects.filter(
-            (proj) => !assignedProjectIds.has(proj._id),
-          );
-
-          setProjects(availableProjects);
-        } else {
-          setError("Error fetching data.");
-        }
-      } catch (err) {
-        console.error(err);
-        setError("Error fetching data.");
-      }
-    };
-
     fetchEmployeeAndProjects();
   }, [id]);
 
@@ -92,10 +100,7 @@ const EmployeeProfilePage = () => {
       const data = await res.json();
 
       if (res.ok) {
-        setEmployee(data.employee);
-        setProjects((prevProjects) =>
-          prevProjects.filter((proj) => proj._id !== projectId),
-        );
+        await fetchEmployeeAndProjects();
       } else {
         alert(data.message);
       }

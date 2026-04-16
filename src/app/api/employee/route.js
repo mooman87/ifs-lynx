@@ -1,3 +1,4 @@
+// api/employee/route.js
 import { NextResponse } from "next/server";
 import { withUser } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
@@ -94,6 +95,7 @@ query StaffByOrg($orgId: uuid!) {
     email
     username
     full_name
+    role
     org_role
     first_name
     last_name
@@ -129,6 +131,7 @@ query StaffAll {
     email
     username
     full_name
+    role
     org_role
     first_name
     last_name
@@ -164,6 +167,7 @@ mutation InsertStaff($object: staff_insert_input!) {
     first_name
     last_name
     email
+    role
     org_role
     username
     full_name
@@ -217,6 +221,8 @@ export const POST = withUser(async (request, user) => {
       );
     }
 
+    const normalizedRole = body.role ?? body.orgRole ?? "Canvasser";
+
     const object = {
       organization_id: orgId,
       user_legacy_id: body.userId ?? null,
@@ -227,7 +233,8 @@ export const POST = withUser(async (request, user) => {
       email: body.email ?? null,
       username: body.username ?? null,
       full_name: body.fullName ?? null,
-      org_role: body.role ?? null,
+      role: normalizedRole,
+      org_role: normalizedRole,
 
       first_name: body.firstName ?? body.first_name ?? null,
       last_name: body.lastName ?? body.last_name ?? null,

@@ -20,6 +20,7 @@ import CommsTab from "@/app/components/CommsTab";
 import ProjectMap from "@/app/components/ProjectMap";
 import BlackBox from "@/app/components/BlackBox";
 import ProjectRoleManager from "@/app/components/ProjectRoleManager";
+import TravelManagement from "@/app/components/TravelManagement";
 
 Chart.register(...registerables);
 
@@ -30,7 +31,6 @@ const isoDay = (d) => {
 };
 
 const getProjectId = (p) => p?.id || p?._id || null;
-const getEmployeeId = (e) => e?.id || e?._id || null;
 
 const PLAN_RANK = {
   citizen: 0,
@@ -41,31 +41,55 @@ const PLAN_RANK = {
 const normalizePlan = (value) => {
   const raw = String(value || "")
     .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_");
+    .toLowerCase();
 
-  if (raw === "commandcenter") return "command_center";
-  if (raw === "command-center") return "command_center";
-  if (raw === "command_center") return "command_center";
-  if (raw === "coalition") return "coalition";
+  if (!raw) return "citizen";
+
+  // normalize separators/spaces first
+  const collapsed = raw.replace(/[\s-]+/g, "_");
+
+  // command center variants
+  if (
+    collapsed === "command_center" ||
+    collapsed === "commandcenter" ||
+    collapsed.includes("command_center") ||
+    collapsed.includes("commandcenter")
+  ) {
+    return "command_center";
+  }
+
+  // coalition variants
+  if (collapsed === "coalition" || collapsed.includes("coalition")) {
+    return "coalition";
+  }
+
+  // citizen variants
+  if (
+    collapsed === "citizen" ||
+    collapsed.includes("citizen") ||
+    collapsed === "free"
+  ) {
+    return "citizen";
+  }
+
   return "citizen";
 };
 
 const tabs = [
-  { id: "overview", label: "Overview", minPlan: "citizen" },
-  { id: "canvassing", label: "Canvassing", minPlan: "citizen" },
-  { id: "staff", label: "Staff & Scheduling", minPlan: "citizen" },
-  { id: "logistics", label: "Logistics", minPlan: "citizen" },
-  { id: "survey", label: "Survey & Script", minPlan: "citizen" },
-  { id: "fundraising", label: "Fundraising", minPlan: "coalition" },
-  { id: "comms", label: "Comms", minPlan: "coalition" },
-  { id: "blackbox", label: "BlackBox", minPlan: "command_center" },
+  { id: "overview", label: "Overview", minRank: 0 },
+  { id: "canvassing", label: "Canvassing", minRank: 0 },
+  { id: "staff", label: "Staff & Scheduling", minRank: 0 },
+  { id: "logistics", label: "Logistics", minRank: 0 },
+  { id: "survey", label: "Survey & Script", minRank: 0 },
+  { id: "fundraising", label: "Fundraising", minRank: 1 },
+  { id: "comms", label: "Comms", minRank: 1 },
+  { id: "blackbox", label: "BlackBox", minRank: 2 },
 ];
 
 const ProjectClient = ({ initialProject, project: projectProp }) => {
   const params = useParams();
   const router = useRouter();
-  const { selectedPage } = useDashboard();
+  const { selectedPage, user } = useDashboard();
 
   const [project, setProject] = useState(initialProject ?? projectProp ?? null);
   const [error, setError] = useState("");
@@ -95,20 +119,15 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
   const canAccessTab = (tabId, plan = orgPlan) => {
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return true;
-    return getPlanRank(plan) >= getPlanRank(tab.minPlan);
+    return getPlanRank(plan) >= tab.minRank;
   };
 
   const getLockedReason = (tabId) => {
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return "";
 
-    const required = normalizePlan(tab.minPlan);
-    if (required === "command_center") {
-      return "Available on Command Center";
-    }
-    if (required === "coalition") {
-      return "Available on Coalition or higher";
-    }
+    if (tab.minRank === 2) return "Available on Command Center";
+    if (tab.minRank === 1) return "Available on Coalition or higher";
     return "";
   };
 
@@ -125,21 +144,26 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
       if (!res.ok)
         throw new Error(data?.message || "Error fetching organization.");
 
-      const org =
-        data?.organization ||
-        data?.org ||
-        data?.organizations?.[0] ||
-        data?.organizations_by_pk ||
-        data;
+      const org = Array.isArray(data)
+        ? data[0]
+        : Array.isArray(data?.organization)
+          ? data.organization[0]
+          : data?.organization ||
+            data?.org ||
+            data?.organizations?.[0] ||
+            data?.organizations_by_pk ||
+            data;
 
-      const detectedPlan =
-        org?.plan ||
-        org?.tier ||
-        org?.subscription_tier ||
-        org?.billing_tier ||
+      const rawPlan =
+        org?.plan ??
+        org?.tier ??
+        org?.subscription_tier ??
+        org?.billing_tier ??
+        org?.subscriptionPlan ??
+        org?.priceTier ??
         "citizen";
 
-      setOrgPlan(normalizePlan(detectedPlan));
+      setOrgPlan(normalizePlan(rawPlan));
     } catch (err) {
       console.error("Error fetching org plan:", err);
       setOrgPlan("citizen");
@@ -323,7 +347,7 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
     }
   };
 
-  const assignEmployeeToDate = async (employee) => {
+  const assignEmployeeToDate = async (employee, updates = {}) => {
     if (!project || !selectedDate) return;
 
     const pid = project.id || project._id;
@@ -344,6 +368,11 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
         firstName: employee.firstName,
         lastName: employee.lastName,
         email: employee.email,
+        role: employee.role,
+        reportsTo: employee.reportsTo ?? null,
+        status: updates.status || "working",
+        shiftLabel: updates.shiftLabel || "",
+        notes: updates.notes || "",
       };
 
       const nextSchedule = prevSchedule.map((e) => ({
@@ -353,10 +382,16 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
 
       if (existingEntryIdx >= 0) {
         const entry = nextSchedule[existingEntryIdx];
-        const ids = new Set(
-          entry.employees.map((x) => x?.id || x?._id).filter(Boolean),
-        );
-        if (!ids.has(eid)) entry.employees.push(employeeSlim);
+        const idx = entry.employees.findIndex((x) => (x?.id || x?._id) === eid);
+
+        if (idx >= 0) {
+          entry.employees[idx] = {
+            ...entry.employees[idx],
+            ...employeeSlim,
+          };
+        } else {
+          entry.employees.push(employeeSlim);
+        }
       } else {
         nextSchedule.push({
           id: `tmp-${dateKey}`,
@@ -373,7 +408,13 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ date: dateKey, employeeId: eid }),
+        body: JSON.stringify({
+          date: dateKey,
+          employeeId: eid,
+          status: updates.status || "working",
+          shiftLabel: updates.shiftLabel || "",
+          notes: updates.notes || "",
+        }),
       });
 
       const data = await res.json();
@@ -389,6 +430,60 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
       console.error("Error scheduling employee:", err);
       await refreshProject();
     }
+  };
+
+  const unscheduleEmployeeFromDate = async (employee) => {
+    if (!project || !selectedDate) return;
+
+    const pid = project.id || project._id;
+    const eid = employee.id || employee._id;
+    const dateKey = selectedDate.toISOString().slice(0, 10);
+
+    setProject((prev) => {
+      if (!prev) return prev;
+
+      const nextSchedule = (prev.schedule || []).map((entry) => {
+        if (entry?.date !== dateKey) return entry;
+        return {
+          ...entry,
+          employees: (entry.employees || []).filter(
+            (x) => (x?.id || x?._id) !== eid,
+          ),
+        };
+      });
+
+      return { ...prev, schedule: nextSchedule };
+    });
+
+    try {
+      const res = await fetch(`/api/project/${pid}/schedule`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ date: dateKey, employeeId: eid }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        if (data?.project) setProject(data.project);
+        else await refreshProject();
+      } else {
+        console.error("Error unscheduling employee:", data.message);
+        await refreshProject();
+      }
+    } catch (err) {
+      console.error("Error unscheduling employee:", err);
+      await refreshProject();
+    }
+  };
+
+  const updateScheduledEmployee = async (employee, updates = {}) => {
+    await assignEmployeeToDate(employee, {
+      status: updates.status ?? employee.status ?? "working",
+      shiftLabel: updates.shiftLabel ?? employee.shiftLabel ?? "",
+      notes: updates.notes ?? employee.notes ?? "",
+    });
   };
 
   const handleFileChange = (e) => setFile(e.target.files?.[0] ?? null);
@@ -794,13 +889,45 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
             />
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <ScheduleEmployees
-                project={project}
-                assignEmployeeToDate={assignEmployeeToDate}
-                selectedDate={selectedDate}
-              />
-            </div>
+
+            <ScheduleEmployees
+              project={project}
+              assignEmployeeToDate={assignEmployeeToDate}
+              unscheduleEmployeeFromDate={unscheduleEmployeeFromDate}
+              updateScheduledEmployee={updateScheduledEmployee}
+              scheduleRequests={project?.scheduleRequests || []}
+              refreshProject={refreshProject}
+              resolveScheduleRequest={async (requestId, resolution) => {
+                if (!projectId) return;
+
+                try {
+                  const res = await fetch(
+                    `/api/project/${projectId}/schedule/requests/${requestId}/resolve`,
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
+                      body: JSON.stringify({ resolution }),
+                    },
+                  );
+
+                  const data = await res.json();
+
+                  if (!res.ok) {
+                    throw new Error(
+                      data?.message || "Failed to resolve schedule request.",
+                    );
+                  }
+
+                  await refreshProject();
+                } catch (err) {
+                  console.error("Error resolving schedule request:", err);
+                }
+              }}
+              selectedDate={selectedDate}
+              currentUser={user}
+            />
+
             <ProjectRoleManager
               projectId={project.id}
               staff={project.assignedEmployees || []}
@@ -811,44 +938,12 @@ const ProjectClient = ({ initialProject, project: projectProp }) => {
       case "logistics":
         return (
           <div className="space-y-6">
-            <HotelDetails
+            <TravelManagement
+              projectId={project?.id || project?._id}
+              assignedEmployees={project?.assignedEmployees || []}
               managerHotel={project?.managerHotel}
               staffHotel={project?.staffHotel}
             />
-            <div className="bg-white border border-dashed border-purple-200 rounded-3xl p-8 text-center shadow-sm">
-              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <path
-                    d="M3 10L12 4L21 10V20H3V10Z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M9 20V14H15V20"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Logistics workspace
-              </h3>
-              <p className="text-sm text-gray-500 max-w-2xl mx-auto">
-                This tab gives you a clean home for hotels now, with room to add
-                map view, travel, turf, and other operational logistics next
-                without crowding the canvassing workflow.
-              </p>
-            </div>
           </div>
         );
 

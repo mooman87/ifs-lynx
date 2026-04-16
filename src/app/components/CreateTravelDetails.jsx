@@ -7,8 +7,8 @@ const baseInput =
 
 const steps = [
   {
-    id: "employee",
-    title: "Employee",
+    id: "staff",
+    title: "Staff member",
     description: "Choose who these travel details belong to.",
   },
   {
@@ -30,64 +30,225 @@ const steps = [
 
 const sectionCard = "rounded-3xl border border-gray-200 bg-white p-5 shadow-sm";
 
-const CreateTravelDetails = ({ isOpen, onClose }) => {
-  const [employees, setEmployees] = useState([]);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
+const emptyFlight = () => ({
+  airline: "",
+  flightNumber: "",
+  departureDate: "",
+  returnDate: "",
+  status: "Pending",
+});
+
+const emptyHotel = () => ({
+  name: "",
+  address: "",
+  roomNumber: "",
+  checkInDate: "",
+  checkOutDate: "",
+});
+
+const emptyRentalCar = () => ({
+  provider: "",
+  makeAndModel: "",
+  licensePlate: "",
+  pickUpDate: "",
+  dropOffDate: "",
+});
+
+const getStaffId = (staff) => staff?._id || staff?.id || "";
+const getTravelId = (travel) => travel?._id || travel?.id || "";
+
+const normalizeFlights = (flights) =>
+  Array.isArray(flights) && flights.length > 0
+    ? flights.map((flight) => ({
+        airline: flight.airline || "",
+        flightNumber: flight.flightNumber || "",
+        departureDate: flight.departureDate || "",
+        returnDate: flight.returnDate || "",
+        status: flight.status || "Pending",
+      }))
+    : [emptyFlight()];
+
+const normalizeHotel = (hotel) => ({
+  name: hotel?.name || "",
+  address: hotel?.address || "",
+  roomNumber: hotel?.roomNumber || "",
+  checkInDate: hotel?.checkInDate || "",
+  checkOutDate: hotel?.checkOutDate || "",
+});
+
+const normalizeRentalCar = (rentalCar) => ({
+  provider: rentalCar?.provider || "",
+  makeAndModel: rentalCar?.makeAndModel || "",
+  licensePlate: rentalCar?.licensePlate || "",
+  pickUpDate: rentalCar?.pickUpDate || "",
+  dropOffDate: rentalCar?.dropOffDate || "",
+});
+
+const buildExpandedFlights = (flights) => {
+  const nextExpanded = {};
+  flights.forEach((_, idx) => {
+    nextExpanded[idx] = idx === 0;
+  });
+  return nextExpanded;
+};
+
+const normalizeStaffList = (list = []) =>
+  list.map((member) => ({
+    ...member,
+    id: member.id || member._id,
+    _id: member.id || member._id,
+    firstName: member.firstName || "",
+    lastName: member.lastName || "",
+    fullName:
+      member.fullName ||
+      `${member.firstName || ""} ${member.lastName || ""}`.trim(),
+    role: member.role || "Unassigned",
+    staffType: member.staffType || "employee",
+    rentalCarEligible:
+      member.rentalCarEligible ?? member.rental_car_eligible ?? false,
+  }));
+
+const CreateTravelDetails = ({
+  isOpen,
+  onClose,
+  onSaved,
+  existingTravel = null,
+  projectId = null,
+  staffOptions = [],
+}) => {
+  const [staff, setStaff] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [expandedFlights, setExpandedFlights] = useState({ 0: true });
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const [formData, setFormData] = useState({
-    employee: "",
-    flights: [
-      {
-        airline: "",
-        flightNumber: "",
-        departureDate: "",
-        returnDate: "",
-        status: "Pending",
-      },
-    ],
-    hotel: {
-      name: "",
-      address: "",
-      roomNumber: "",
-      checkInDate: "",
-      checkOutDate: "",
-    },
-    rentalCar: {
-      provider: "",
-      makeAndModel: "",
-      licensePlate: "",
-      pickUpDate: "",
-      dropOffDate: "",
-    },
+    staffId: "",
+    flights: [emptyFlight()],
+    hotel: emptyHotel(),
+    rentalCar: emptyRentalCar(),
+    notes: "",
   });
 
+  const selectedStaff = useMemo(() => {
+    return (
+      staff.find(
+        (member) =>
+          String(getStaffId(member)) === String(formData.staffId || ""),
+      ) || null
+    );
+  }, [staff, formData.staffId]);
+
+  const isEditing = Boolean(existingTravel);
+  const activeStep = useMemo(() => steps[currentStep], [currentStep]);
+  const progressPercent = ((currentStep + 1) / steps.length) * 100;
+  const isProjectScoped = Boolean(projectId);
+
+  const loadStaffFromApi = async () => {
+    if (isProjectScoped) {
+      const res = await fetch(`/api/project/${projectId}/travel`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Error fetching project staff.");
+      }
+
+      return normalizeStaffList(data.staffOptions || []);
+    }
+
+    const res = await fetch("/api/employee", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || "Error fetching staff.");
+    }
+
+    return normalizeStaffList(data.employees || []);
+  };
+
+  const normalizedProvidedStaff = useMemo(
+    () => normalizeStaffList(staffOptions || []),
+    [staffOptions],
+  );
+
   useEffect(() => {
-    const fetchEmployees = async () => {
+    if (!isOpen) return;
+
+    const fetchStaff = async () => {
       try {
-        const res = await fetch("/api/employee");
-        const data = await res.json();
-        if (res.ok) {
-          setEmployees(data.employees);
-        } else {
-          console.error("Error fetching employees.");
-        }
+        setLoadingStaff(true);
+        setError("");
+
+        const list =
+          normalizedProvidedStaff.length > 0
+            ? normalizedProvidedStaff
+            : await loadStaffFromApi();
+
+        setStaff(list);
+
+        const existingStaffId =
+          existingTravel?.staffId ||
+          existingTravel?.employee?._id ||
+          existingTravel?.employee?.id ||
+          "";
+
+        const flights = normalizeFlights(existingTravel?.flights);
+
+        const nextForm = existingTravel
+          ? {
+              staffId: existingStaffId,
+              flights,
+              hotel: normalizeHotel(existingTravel.hotel),
+              rentalCar: normalizeRentalCar(existingTravel.rentalCar),
+              notes: existingTravel.notes || "",
+            }
+          : {
+              staffId: list[0]?.id || "",
+              flights: [emptyFlight()],
+              hotel: emptyHotel(),
+              rentalCar: emptyRentalCar(),
+              notes: "",
+            };
+
+        setFormData(nextForm);
+
+        const resolvedStaffId = existingTravel
+          ? existingStaffId
+          : nextForm.staffId;
+
+        setExpandedFlights(buildExpandedFlights(nextForm.flights));
+        setCurrentStep(0);
       } catch (err) {
-        console.error("Error fetching employees:", err);
+        console.error("Error fetching staff:", err);
+        setError(err.message || "Error fetching staff.");
+      } finally {
+        setLoadingStaff(false);
       }
     };
 
-    fetchEmployees();
-  }, []);
+    fetchStaff();
+  }, [
+    isOpen,
+    existingTravel,
+    projectId,
+    isProjectScoped,
+    normalizedProvidedStaff,
+  ]);
 
-  const activeStep = useMemo(() => steps[currentStep], [currentStep]);
-  const progressPercent = ((currentStep + 1) / steps.length) * 100;
-
-  const employeeLabel = useMemo(() => {
-    if (!selectedEmployee) return "No employee selected";
-    return `${selectedEmployee.firstName} ${selectedEmployee.lastName}`;
-  }, [selectedEmployee]);
+  const staffLabel = useMemo(() => {
+    if (!selectedStaff) return "No staff selected";
+    return (
+      selectedStaff.fullName ||
+      `${selectedStaff.firstName || ""} ${selectedStaff.lastName || ""}`.trim()
+    );
+  }, [selectedStaff]);
 
   const handleChange = (e, section = null, index = null, field = null) => {
     const { name, value } = e.target;
@@ -111,26 +272,22 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleEmployeeChange = (e) => {
+  const handleStaffChange = (e) => {
     const selectedId = e.target.value;
-    setFormData((prevData) => ({ ...prevData, employee: selectedId }));
 
-    const selectedEmp = employees.find((emp) => emp._id === selectedId);
-    setSelectedEmployee(selectedEmp || null);
+    const found = staff.find(
+      (member) => String(getStaffId(member)) === String(selectedId),
+    );
+
+    setFormData((prevData) => ({
+      ...prevData,
+      staffId: selectedId,
+    }));
   };
 
   const addFlight = () => {
     setFormData((prevData) => {
-      const nextFlights = [
-        ...prevData.flights,
-        {
-          airline: "",
-          flightNumber: "",
-          departureDate: "",
-          returnDate: "",
-          status: "Pending",
-        },
-      ];
+      const nextFlights = [...prevData.flights, emptyFlight()];
       return { ...prevData, flights: nextFlights };
     });
 
@@ -141,10 +298,13 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
   };
 
   const removeFlight = (index) => {
-    setFormData((prevData) => ({
-      ...prevData,
-      flights: prevData.flights.filter((_, i) => i !== index),
-    }));
+    setFormData((prevData) => {
+      const nextFlights = prevData.flights.filter((_, i) => i !== index);
+      return {
+        ...prevData,
+        flights: nextFlights.length ? nextFlights : [emptyFlight()],
+      };
+    });
 
     setExpandedFlights((prev) => {
       const next = {};
@@ -153,6 +313,7 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
         if (numericKey < index) next[numericKey] = prev[numericKey];
         if (numericKey > index) next[numericKey - 1] = prev[numericKey];
       });
+      if (!Object.keys(next).length) next[0] = true;
       return next;
     });
   };
@@ -166,7 +327,7 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
 
   const goNext = () => {
     if (currentStep < steps.length - 1) {
-      if (activeStep.id === "employee" && !formData.employee) return;
+      if (activeStep.id === "staff" && !formData.staffId) return;
       setCurrentStep((prev) => prev + 1);
     }
   };
@@ -174,6 +335,15 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
   const goBack = () => {
     if (currentStep > 0) setCurrentStep((prev) => prev - 1);
   };
+
+  const buildPayload = () => ({
+    projectId: projectId || existingTravel?.projectId || null,
+    staffId: formData.staffId,
+    flights: formData.flights,
+    hotel: formData.hotel,
+    rentalCar: formData.rentalCar,
+    notes: formData.notes,
+  });
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -184,50 +354,91 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
     }
 
     try {
-      const res = await fetch("/api/travel", {
-        method: "POST",
+      setSaving(true);
+      setError("");
+
+      const payload = buildPayload();
+      const endpoint = isProjectScoped
+        ? `/api/project/${projectId}/travel`
+        : "/api/travel";
+      const method = isEditing ? (isProjectScoped ? "POST" : "PUT") : "POST";
+
+      let body;
+      if (isEditing && !isProjectScoped) {
+        body = JSON.stringify({
+          id: getTravelId(existingTravel),
+          updates: payload,
+        });
+      } else {
+        body = JSON.stringify(payload);
+      }
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        credentials: "include",
+        body,
       });
 
-      if (res.ok) {
-        onClose();
-      } else {
-        alert("Error saving travel details.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Error saving travel details.");
       }
-    } catch (error) {
-      console.error(error);
+
+      if (onSaved) onSaved(data.travel);
+      onClose();
+    } catch (saveError) {
+      console.error(saveError);
+      setError(saveError.message || "Error saving travel details.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const renderEmployeeStep = () => (
+  const renderStaffStep = () => (
     <section className={sectionCard}>
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Employee</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Staff member</h3>
         <p className="text-sm text-gray-500">
-          Choose who these travel details belong to.
+          {isProjectScoped
+            ? "Choose a staff member already assigned to this project."
+            : "Choose who these travel details belong to."}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
-            Select employee
+            Select staff member
           </label>
           <select
-            name="employee"
-            value={formData.employee}
-            onChange={handleEmployeeChange}
+            name="staffId"
+            value={formData.staffId}
+            onChange={handleStaffChange}
             className={baseInput}
             required
+            disabled={loadingStaff || isEditing}
           >
-            <option value="">-- Select Employee --</option>
-            {employees.map((emp) => (
-              <option key={emp._id} value={emp._id}>
-                {emp.firstName} {emp.lastName}
-              </option>
-            ))}
+            <option value="">
+              {loadingStaff ? "Loading staff..." : "-- Select Staff Member --"}
+            </option>
+            {staff.map((member) => {
+              const id = getStaffId(member);
+              return (
+                <option key={id} value={id}>
+                  {member.fullName ||
+                    `${member.firstName} ${member.lastName}`.trim()}
+                </option>
+              );
+            })}
           </select>
+          {isEditing ? (
+            <p className="text-xs text-gray-500">
+              Staff assignment is locked while editing an existing travel
+              record.
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
@@ -235,20 +446,26 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
             Selected
           </p>
           <p className="mt-1 text-sm font-semibold text-gray-900">
-            {employeeLabel}
+            {staffLabel}
           </p>
-          {selectedEmployee && (
-            <p
-              className={`mt-2 text-sm font-semibold ${
-                selectedEmployee.rentalCarEligible
-                  ? "text-green-700"
-                  : "text-red-700"
-              }`}
-            >
-              {selectedEmployee.rentalCarEligible
-                ? "✅ Eligible for rental car"
-                : "❌ Not eligible for rental car"}
-            </p>
+          {selectedStaff && (
+            <>
+              <p className="mt-1 text-xs text-gray-500">
+                {selectedStaff.staffType || "employee"} ·{" "}
+                {selectedStaff.role || "Unassigned"}
+              </p>
+              <p
+                className={`mt-2 text-sm font-semibold ${
+                  selectedStaff.rentalCarEligible
+                    ? "text-green-700"
+                    : "text-red-700"
+                }`}
+              >
+                {selectedStaff.rentalCarEligible
+                  ? "Eligible for rental car"
+                  : "Not eligible for rental car"}
+              </p>
+            </>
           )}
         </div>
       </div>
@@ -279,7 +496,7 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
           const isExpanded = expandedFlights[index] ?? index === 0;
           const flightTitle =
             flight.airline || flight.flightNumber
-              ? `${flight.airline || "Unnamed airline"} ${flight.flightNumber ? `• ${flight.flightNumber}` : ""}`
+              ? `${flight.airline || "Unnamed airline"}${flight.flightNumber ? ` • ${flight.flightNumber}` : ""}`
               : `Flight ${index + 1}`;
 
           const summaryBits = [
@@ -503,12 +720,31 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
             />
           </div>
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+            Notes
+          </label>
+          <textarea
+            name="notes"
+            value={formData.notes}
+            onChange={handleChange}
+            rows={3}
+            className={baseInput}
+            placeholder="Optional hotel, travel, or coordination notes"
+          />
+        </div>
       </div>
     </section>
   );
 
   const renderRentalStep = () => {
-    if (!selectedEmployee?.rentalCarEligible) {
+    const isRentalEligible =
+      selectedStaff?.rentalCarEligible ??
+      selectedStaff?.rental_car_eligible ??
+      false;
+
+    if (!isRentalEligible) {
       return (
         <section className={sectionCard}>
           <div className="mb-4">
@@ -517,7 +753,7 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
             </div>
             <h3 className="text-lg font-semibold text-gray-900">Rental car</h3>
             <p className="text-sm text-gray-500">
-              This employee is not eligible for a rental car.
+              This staff member is not eligible for a rental car.
             </p>
           </div>
 
@@ -526,7 +762,8 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
               Rental car entry skipped
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              You can still save flights and hotel details for this employee.
+              You can still save flights and hotel details for this staff
+              member.
             </p>
           </div>
         </section>
@@ -541,7 +778,7 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
           </div>
           <h3 className="text-lg font-semibold text-gray-900">Rental car</h3>
           <p className="text-sm text-gray-500">
-            Add provider and vehicle details for this employee.
+            Add provider and vehicle details for this staff member.
           </p>
         </div>
 
@@ -619,8 +856,8 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
 
   const renderStep = () => {
     switch (activeStep.id) {
-      case "employee":
-        return renderEmployeeStep();
+      case "staff":
+        return renderStaffStep();
       case "flights":
         return renderFlightsStep();
       case "hotel":
@@ -645,10 +882,11 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
                   Travel planner
                 </p>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  Add Travel Details
+                  {isEditing ? "Edit Travel Details" : "Add Travel Details"}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
                   Step {currentStep + 1} of {steps.length}: {activeStep.title}
+                  {isProjectScoped ? " · Project scoped" : ""}
                 </p>
               </div>
 
@@ -711,7 +949,12 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
           </div>
 
           <form onSubmit={onSubmit} className="flex max-h-[82vh] flex-col">
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+            <div className="flex-1 space-y-4 overflow-y-auto p-5 sm:p-6">
+              {error ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
               {renderStep()}
             </div>
 
@@ -732,10 +975,17 @@ const CreateTravelDetails = ({ isOpen, onClose }) => {
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6]"
+                    disabled={saving || loadingStaff}
+                    className="inline-flex items-center justify-center rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {currentStep === steps.length - 1
-                      ? "Save travel details"
+                      ? saving
+                        ? isEditing
+                          ? "Saving changes..."
+                          : "Saving travel..."
+                        : isEditing
+                          ? "Save changes"
+                          : "Save travel details"
                       : "Next"}
                   </button>
                 </div>

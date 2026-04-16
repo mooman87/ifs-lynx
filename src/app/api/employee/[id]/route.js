@@ -1,3 +1,4 @@
+//api/employee/[id]/route.js
 import { NextResponse } from "next/server";
 import { withUser } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";

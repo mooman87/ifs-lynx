@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const toLabel = (key = "") =>
   key
@@ -11,7 +11,36 @@ const toLabel = (key = "") =>
 const baseInput =
   "min-w-0 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#AFA9EC] focus:ring-4 focus:ring-[#EEEDFE]";
 
+const roleOptions = [
+  "Campaign Manager",
+  "Deputy Campaign Manager",
+  "Treasurer",
+  "Finance Director",
+  "Communications Director",
+  "Press Secretary",
+  "Digital Director",
+  "Field Director",
+  "Organizer",
+  "Canvasser",
+  "Volunteer Coordinator",
+  "Data Director",
+  "Operations Director",
+  "Deputy State Director",
+  "State Director",
+  "Political Director",
+  "C Suite",
+  "HR",
+  "Payroll",
+  "Travel",
+];
+
 const steps = [
+  {
+    id: "identity",
+    title: "Identity & access",
+    description: "Login credentials, staff type, and organization role.",
+    fields: ["fullName", "email", "username", "password", "staffType", "role"],
+  },
   {
     id: "basic",
     title: "Basic info",
@@ -22,7 +51,7 @@ const steps = [
     id: "contact",
     title: "Contact",
     description: "Phone and email details.",
-    fields: ["phone", "email"],
+    fields: ["phone"],
   },
   {
     id: "address",
@@ -32,9 +61,9 @@ const steps = [
   },
   {
     id: "role",
-    title: "Role & reporting",
-    description: "Position, manager, and start date.",
-    fields: ["role", "reportsTo", "availableStart"],
+    title: "Reporting & start",
+    description: "Position, manager, and availability.",
+    fields: ["reportsTo", "availableStart"],
   },
   {
     id: "travel",
@@ -45,8 +74,8 @@ const steps = [
 ];
 
 const getFieldSpanClass = (stepId, field) => {
-  if (stepId === "contact") {
-    if (field === "email") return "md:col-span-2";
+  if (stepId === "identity") {
+    if (field === "fullName" || field === "email") return "md:col-span-2";
     return "";
   }
 
@@ -61,7 +90,7 @@ const getFieldSpanClass = (stepId, field) => {
 };
 
 const getGridClass = (stepId) => {
-  if (stepId === "contact") {
+  if (stepId === "identity") {
     return "grid grid-cols-1 gap-4 md:grid-cols-2";
   }
 
@@ -79,10 +108,17 @@ const CreateEmployeeModal = ({
   handleChange,
   handleSubmit,
   isEditing = false,
+  errorMessage = "",
+  successMessage = "",
+  submitting = false,
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
   const activeStep = useMemo(() => steps[currentStep], [currentStep]);
+
+  useEffect(() => {
+    if (isOpen) setCurrentStep(0);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -113,16 +149,20 @@ const CreateEmployeeModal = ({
   return (
     <div className="fixed inset-0 z-[100] bg-black/45 backdrop-blur-sm p-3 sm:p-4">
       <div className="flex min-h-full items-center justify-center">
-        <div className="w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/60 bg-[#fcfbff] shadow-2xl">
+        <div className="w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-[#fcfbff] shadow-2xl">
           <div className="border-b border-gray-200 bg-white/90 px-5 py-5 sm:px-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
-                  {isEditing ? "Employee editor" : "New employee"}
+                  {isEditing ? "Staff editor" : "New staff member"}
                 </p>
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {isEditing ? "Edit Employee" : "Add New Employee"}
+                  {isEditing ? "Edit Staff Member" : "Create Staff Member"}
                 </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Every staff member gets a login and counts against your seat
+                  limit.
+                </p>
                 <p className="mt-1 text-sm text-gray-500">
                   Step {currentStep + 1} of {steps.length}: {activeStep.title}
                 </p>
@@ -132,7 +172,7 @@ const CreateEmployeeModal = ({
                 type="button"
                 onClick={toggleModal}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:bg-gray-50 hover:text-gray-800"
-                aria-label="Close employee modal"
+                aria-label="Close staff modal"
               >
                 <div className="relative h-4 w-4">
                   <span className="absolute left-0 top-1/2 h-[2px] w-4 -translate-y-1/2 rotate-45 rounded-full bg-current" />
@@ -186,8 +226,20 @@ const CreateEmployeeModal = ({
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="flex max-h-[80vh] flex-col">
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+          <form onSubmit={onSubmit} className="flex max-h-[84vh] flex-col">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              {errorMessage ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {errorMessage}
+                </div>
+              ) : null}
+
+              {successMessage ? (
+                <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                  {successMessage}
+                </div>
+              ) : null}
+
               <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -200,30 +252,110 @@ const CreateEmployeeModal = ({
 
                 {activeStep.id !== "travel" ? (
                   <div className={getGridClass(activeStep.id)}>
-                    {activeStep.fields.map((field) => (
-                      <div
-                        key={field}
-                        className={`min-w-0 space-y-1.5 ${getFieldSpanClass(
-                          activeStep.id,
-                          field,
-                        )}`}
-                      >
-                        <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
-                          {toLabel(field)}
-                        </label>
-                        <input
-                          type={
-                            field === "dob" || field === "availableStart"
-                              ? "date"
-                              : "text"
-                          }
-                          name={field}
-                          value={formData[field] ?? ""}
-                          onChange={handleChange}
-                          className={baseInput}
-                        />
-                      </div>
-                    ))}
+                    {activeStep.fields.map((field) => {
+                      if (field === "role") {
+                        return (
+                          <div
+                            key={field}
+                            className={`min-w-0 space-y-1.5 ${getFieldSpanClass(
+                              activeStep.id,
+                              field,
+                            )}`}
+                          >
+                            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+                              {toLabel(field)}
+                            </label>
+                            <select
+                              name={field}
+                              value={formData[field] ?? "Canvasser"}
+                              onChange={handleChange}
+                              className={baseInput}
+                            >
+                              {roleOptions.map((role) => (
+                                <option key={role} value={role}>
+                                  {role}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      if (field === "staffType") {
+                        return (
+                          <div
+                            key={field}
+                            className={`min-w-0 space-y-1.5 ${getFieldSpanClass(
+                              activeStep.id,
+                              field,
+                            )}`}
+                          >
+                            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+                              Staff type
+                            </label>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              {["employee", "contractor", "volunteer"].map(
+                                (option) => {
+                                  const checked =
+                                    (formData.staffType || "employee") ===
+                                    option;
+                                  return (
+                                    <label
+                                      key={option}
+                                      className={`cursor-pointer rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                                        checked
+                                          ? "border-[#AFA9EC] bg-[#EEEDFE] text-[#3C3489]"
+                                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="staffType"
+                                        value={option}
+                                        checked={checked}
+                                        onChange={handleChange}
+                                        className="sr-only"
+                                      />
+                                      {option.charAt(0).toUpperCase() +
+                                        option.slice(1)}
+                                    </label>
+                                  );
+                                },
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={field}
+                          className={`min-w-0 space-y-1.5 ${getFieldSpanClass(
+                            activeStep.id,
+                            field,
+                          )}`}
+                        >
+                          <label className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+                            {toLabel(field)}
+                          </label>
+                          <input
+                            type={
+                              field === "dob" || field === "availableStart"
+                                ? "date"
+                                : field === "email"
+                                  ? "email"
+                                  : field === "password"
+                                    ? "password"
+                                    : "text"
+                            }
+                            name={field}
+                            value={formData[field] ?? ""}
+                            onChange={handleChange}
+                            className={baseInput}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="space-y-5">
@@ -253,7 +385,7 @@ const CreateEmployeeModal = ({
                             Rental car eligibility
                           </h4>
                           <p className="text-sm text-gray-500">
-                            Flag whether this employee can be assigned a rental
+                            Flag whether this staffer can be assigned a rental
                             car.
                           </p>
                         </div>
@@ -321,12 +453,15 @@ const CreateEmployeeModal = ({
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6]"
+                    disabled={submitting}
+                    className="inline-flex items-center justify-center rounded-full border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-2 text-sm font-semibold text-[#3C3489] transition hover:bg-[#CECBF6] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {currentStep === steps.length - 1
-                      ? isEditing
-                        ? "Update employee"
-                        : "Save employee"
+                      ? submitting
+                        ? "Creating staff..."
+                        : isEditing
+                          ? "Update staff"
+                          : "Create staff"
                       : "Next"}
                   </button>
                 </div>

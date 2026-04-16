@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboard } from "../context/DashboardContext";
 import CreateEmployeeModal from "./CreateEmployeeModal";
@@ -19,7 +19,17 @@ const EmployeeList = ({
   const selectedPage = dashboard?.selectedPage ?? "Staff";
 
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [createSuccess, setCreateSuccess] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
   const [employeeFormData, setEmployeeFormData] = useState({
+    fullName: "",
+    email: "",
+    username: "",
+    password: "",
     firstName: "",
     lastName: "",
     gender: "",
@@ -30,66 +40,137 @@ const EmployeeList = ({
     city: "",
     state: "",
     zip: "",
-    email: "",
     availableStart: "",
-    role: "",
+    role: "Canvasser",
+    staffType: "employee",
     reportsTo: "",
     homeAirport: "",
     altAirport: "",
     rentalCarEligible: false,
   });
 
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        setLoadingUser(true);
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json();
+
+        if (!res.ok || !data.user) {
+          throw new Error(data.message || "Failed to load current user");
+        }
+
+        setCurrentUser(data.user);
+      } catch (err) {
+        console.error(err);
+        setCreateError(err.message || "Failed to load current user");
+      } finally {
+        setLoadingUser(false);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
   const handleEmployeeModalToggle = () => {
     setIsEmployeeModalOpen((prev) => !prev);
+    setCreateError("");
+    setCreateSuccess("");
+  };
+
+  const resetForm = () => {
+    setEmployeeFormData({
+      fullName: "",
+      email: "",
+      username: "",
+      password: "",
+      firstName: "",
+      lastName: "",
+      gender: "",
+      dob: "",
+      phone: "",
+      address: "",
+      address2: "",
+      city: "",
+      state: "",
+      zip: "",
+      availableStart: "",
+      role: "Canvasser",
+      staffType: "employee",
+      reportsTo: "",
+      homeAirport: "",
+      altAirport: "",
+      rentalCarEligible: false,
+    });
   };
 
   const handleEmployeeChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setEmployeeFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+
+    setEmployeeFormData((prev) => {
+      const next = {
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      if (name === "fullName") {
+        const parts = String(value || "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+        next.firstName = parts[0] || "";
+        next.lastName = parts.slice(1).join(" ");
+      }
+
+      if (name === "firstName" || name === "lastName") {
+        const first = name === "firstName" ? value : next.firstName || "";
+        const last = name === "lastName" ? value : next.lastName || "";
+        next.fullName = [first, last].filter(Boolean).join(" ");
+      }
+
+      return next;
+    });
   };
 
   const createEmployee = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+    setCreateError("");
+    setCreateSuccess("");
+
     try {
-      const res = await fetch("/api/employee", {
+      const payload = {
+        ...employeeFormData,
+        fullName:
+          employeeFormData.fullName ||
+          [employeeFormData.firstName, employeeFormData.lastName]
+            .filter(Boolean)
+            .join(" "),
+        organization: currentUser?.organization?.id || "",
+      };
+
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(employeeFormData),
+        credentials: "include",
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
-        setEmployees((prev) => [...prev, data.employee]);
-        setIsEmployeeModalOpen(false);
-        setEmployeeFormData({
-          firstName: "",
-          lastName: "",
-          gender: "",
-          dob: "",
-          phone: "",
-          address: "",
-          address2: "",
-          city: "",
-          state: "",
-          zip: "",
-          email: "",
-          availableStart: "",
-          role: "",
-          reportsTo: "",
-          homeAirport: "",
-          altAirport: "",
-          rentalCarEligible: false,
-        });
-        fetchEmployees();
-      } else {
-        console.error(data.message);
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create staff member");
       }
+
+      setCreateSuccess("Staff member created successfully.");
+      setIsEmployeeModalOpen(false);
+      resetForm();
+      await fetchEmployees();
     } catch (error) {
       console.error("Error:", error);
+      setCreateError(error.message || "Failed to create staff member");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -120,7 +201,8 @@ const EmployeeList = ({
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Staff Profiles</h1>
             <p className="text-sm text-gray-500">
-              View staff, group by role, and jump directly into staff records.
+              Manage your roster, open staff records, and create login-enabled
+              staff from one place.
             </p>
           </div>
 
@@ -135,6 +217,12 @@ const EmployeeList = ({
         {errorMessage ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {errorMessage}
+          </div>
+        ) : null}
+
+        {createSuccess ? (
+          <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {createSuccess}
           </div>
         ) : null}
 
@@ -173,13 +261,16 @@ const EmployeeList = ({
                           Name
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                          Type
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
                           Phone
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
                           Email
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
-                          Home Airport
+                          Login
                         </th>
                         <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400">
                           Rental
@@ -190,8 +281,10 @@ const EmployeeList = ({
                     <tbody>
                       {groupedEmployees[role].map((employee, index) => (
                         <tr
-                          key={employee._id}
-                          onClick={() => goToEmployeeProfile(employee._id)}
+                          key={employee._id || employee.id}
+                          onClick={() =>
+                            goToEmployeeProfile(employee._id || employee.id)
+                          }
                           className={`cursor-pointer transition hover:bg-[#f8f7fd] ${
                             index !== groupedEmployees[role].length - 1
                               ? "border-b border-gray-100"
@@ -218,6 +311,10 @@ const EmployeeList = ({
                             </div>
                           </td>
 
+                          <td className="px-4 py-3 text-sm text-gray-600 capitalize">
+                            {employee.staffType || "employee"}
+                          </td>
+
                           <td className="px-4 py-3 text-sm text-gray-600">
                             {employee.phone || "—"}
                           </td>
@@ -228,8 +325,16 @@ const EmployeeList = ({
                             </span>
                           </td>
 
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {employee.homeAirport || "—"}
+                          <td className="px-4 py-3">
+                            {employee.canLogin !== false ? (
+                              <span className="inline-flex rounded-full bg-[#EEEDFE] px-2.5 py-1 text-xs font-semibold text-[#3C3489] border border-[#AFA9EC]">
+                                Enabled
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500 border border-gray-200">
+                                Disabled
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3">
@@ -260,6 +365,9 @@ const EmployeeList = ({
             formData={employeeFormData}
             handleChange={handleEmployeeChange}
             handleSubmit={createEmployee}
+            errorMessage={createError}
+            successMessage={createSuccess}
+            submitting={submitting}
           />
         )}
       </div>

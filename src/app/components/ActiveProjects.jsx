@@ -190,7 +190,7 @@ const ActiveProjects = ({
       alert(err.message || "Delete failed");
     }
   };
-  //fix this
+
   const ActionMenu = ({ projectId }) => {
     const [open, setOpen] = useState(false);
 
@@ -244,7 +244,6 @@ const ActiveProjects = ({
       </div>
     );
   };
-  // ^ fix this
 
   // Split projects into Live/Pending and Complete
   const { activeList, completeList } = useMemo(() => {

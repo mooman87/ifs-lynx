@@ -8,17 +8,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_TEST_KEY);
 const PLAN_CONFIG = {
   Citizen: {
     priceId: process.env.STRIPE_PRICE_CITIZEN_TEST,
-    seatLimit: 5,
+    seatLimit: 10,
     amountLabel: "$0.00/mo",
   },
   Coalition: {
     priceId: process.env.STRIPE_PRICE_COALITION_TEST,
-    seatLimit: 15,
+    seatLimit: 20,
     amountLabel: "$99.99/mo",
   },
   "Command Center": {
     priceId: process.env.STRIPE_PRICE_COMMAND_CENTER_TEST,
-    seatLimit: 50,
+    seatLimit: 100,
     amountLabel: "$199.99/mo",
   },
 };

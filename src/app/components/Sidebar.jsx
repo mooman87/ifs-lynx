@@ -4,8 +4,6 @@ import { useDashboard } from "@/app/context/DashboardContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
 const dualUseIcon = (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -76,60 +74,29 @@ const employeeIcon = (
   </svg>
 );
 
-const addUserIcon = (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width={18}
-    height={18}
-    color="currentColor"
-    fill="none"
-  >
-    <path
-      d="M16 19C16 17.3431 14.6569 16 13 16H7C5.34315 16 4 17.3431 4 19"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-    <circle cx="10" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-    <path
-      d="M19 8V14"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-    <path
-      d="M22 11H16"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-const travelIcon = (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    width={18}
-    height={18}
-    color="currentColor"
-    fill="none"
-  >
-    <path
-      d="M2.00031 20H18.0003"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M3.82527 12.1661C3.55027 11.9661 3.30027 11.7161 3.00028 10.8411C2.91891 10.6241 2.61139 9.53619 2.35028 8.54109C2.13003 7.7017 1.93377 6.93555 2.02528 6.74109C2.10029 6.54109 2.20027 6.39109 2.52527 6.19109C2.72527 6.06802 3.75027 5.81609 3.95027 5.76609C4.15027 5.71609 4.42526 5.69109 4.65027 5.76609C5.07527 5.84109 5.95027 7.11609 6.17527 7.26609C6.27526 7.36609 6.60027 7.657 6.97527 7.69109C7.25027 7.71609 7.52527 7.64109 7.82528 7.51609C8.10027 7.40151 13.5253 4.76609 14.0253 4.54109C18.1003 2.84109 21.0603 5.63609 21.5103 6.23609C21.9753 6.81609 22.0753 6.99109 21.9503 7.49109C21.7887 8.01609 21.3503 8.11609 21.1003 8.19109C20.8503 8.26609 17.4003 9.19109 16.0503 9.56609C15.7554 9.6621 15.6114 9.85492 15.5753 9.89109C15.4003 10.1411 14.6053 11.8411 14.3803 12.2161C14.2253 12.6161 13.8003 13.1161 13.2503 13.3161C12.6753 13.5161 11.6753 13.7411 11.4503 13.8161C11.2253 13.8911 10.7003 14.0411 10.5253 13.9911C10.3003 13.9411 10.0853 13.7161 10.1853 13.3661C10.2853 13.0161 10.4753 12.0411 10.5003 11.8911C10.5253 11.7411 10.7753 11.1161 10.5003 11.0911C10.4503 11.0161 9.92527 11.2411 9.15027 11.4161C8.57449 11.5782 7.9715 11.7386 7.55027 11.8411C5.92527 12.3161 5.04521 12.4411 4.85027 12.4411C4.47527 12.4411 4.20027 12.3911 3.82527 12.1661Z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    />
-  </svg>
-);
+// const travelIcon = (
+//   <svg
+//     xmlns="http://www.w3.org/2000/svg"
+//     viewBox="0 0 24 24"
+//     width={18}
+//     height={18}
+//     color="currentColor"
+//     fill="none"
+//   >
+//     <path
+//       d="M2.00031 20H18.0003"
+//       stroke="currentColor"
+//       strokeWidth="1.5"
+//       strokeLinecap="round"
+//       strokeLinejoin="round"
+//     />
+//     <path
+//       d="M3.82527 12.1661C3.55027 11.9661 3.30027 11.7161 3.00028 10.8411C2.91891 10.6241 2.61139 9.53619 2.35028 8.54109C2.13003 7.7017 1.93377 6.93555 2.02528 6.74109C2.10029 6.54109 2.20027 6.39109 2.52527 6.19109C2.72527 6.06802 3.75027 5.81609 3.95027 5.76609C4.15027 5.71609 4.42526 5.69109 4.65027 5.76609C5.07527 5.84109 5.95027 7.11609 6.17527 7.26609C6.27526 7.36609 6.60027 7.657 6.97527 7.69109C7.25027 7.71609 7.52527 7.64109 7.82528 7.51609C8.10027 7.40151 13.5253 4.76609 14.0253 4.54109C18.1003 2.84109 21.0603 5.63609 21.5103 6.23609C21.9753 6.81609 22.0753 6.99109 21.9503 7.49109C21.7887 8.01609 21.3503 8.11609 21.1003 8.19109C20.8503 8.26609 17.4003 9.19109 16.0503 9.56609C15.7554 9.6621 15.6114 9.85492 15.5753 9.89109C15.4003 10.1411 14.6053 11.8411 14.3803 12.2161C14.2253 12.6161 13.8003 13.1161 13.2503 13.3161C12.6753 13.5161 11.6753 13.7411 11.4503 13.8161C11.2253 13.8911 10.7003 14.0411 10.5253 13.9911C10.3003 13.9411 10.0853 13.7161 10.1853 13.3661C10.2853 13.0161 10.4753 12.0411 10.5003 11.8911C10.5253 11.7411 10.7753 11.1161 10.5003 11.0911C10.4503 11.0161 9.92527 11.2411 9.15027 11.4161C8.57449 11.5782 7.9715 11.7386 7.55027 11.8411C5.92527 12.3161 5.04521 12.4411 4.85027 12.4411C4.47527 12.4411 4.20027 12.3911 3.82527 12.1661Z"
+//       stroke="currentColor"
+//       strokeWidth="1.5"
+//     />
+//   </svg>
+// );
 
 const settingsIcon = (
   <svg
@@ -264,8 +231,6 @@ const chevronDownIcon = (
   </svg>
 );
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const getInitials = (name = "") =>
   name
     .split(" ")
@@ -305,8 +270,6 @@ const NavItem = ({ icon, label, isActive, onClick, badge }) => (
     )}
   </button>
 );
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 const Sidebar = () => {
   const { selectedPage, setSelectedPage, user } = useDashboard();
@@ -394,7 +357,6 @@ const Sidebar = () => {
       ? { name: "Admin Dashboard", key: "Admin Dashboard" }
       : { name: "Active Projects", key: "Active Projects" },
     { name: "Staff", key: "Staff" },
-    { name: "Travel Management", key: "Travel Management" },
     ...(!isDemo ? [{ name: "Manage Profile", key: "Manage Profile" }] : []),
   ];
 
@@ -402,7 +364,6 @@ const Sidebar = () => {
     "Admin Dashboard": dualUseIcon,
     "Active Projects": dualUseIcon,
     Staff: employeeIcon,
-    "Travel Management": travelIcon,
     "Manage Profile": settingsIcon,
   };
 
@@ -438,7 +399,12 @@ const Sidebar = () => {
     <>
       <aside className="hidden md:flex md:w-56 h-screen bg-white border-r border-gray-100 flex-col flex-shrink-0 sticky top-0 overflow-hidden">
         <div className="flex justify-center pt-4 pb-2 px-4">
-          <Image height={180} width={180} src="/test.png" alt="Lynx logo" />
+          <Image
+            height={180}
+            width={180}
+            src="/LynxNewLogo.png"
+            alt="Lynx logo"
+          />
         </div>
 
         {isSuperAdmin && (
@@ -588,23 +554,9 @@ const Sidebar = () => {
             onClick={() => navigate("Staff")}
           />
 
-          <NavItem
-            icon={travelIcon}
-            label="Travel"
-            isActive={isActive("Travel Management")}
-            onClick={() => navigate("Travel Management")}
-          />
-
           <Divider />
 
           <SectionLabel>Admin</SectionLabel>
-
-          <NavItem
-            icon={addUserIcon}
-            label="Add user"
-            isActive={isActive("Create Staff User")}
-            onClick={() => navigate("Create Staff User")}
-          />
 
           <NavItem
             icon={billingIcon}
@@ -617,12 +569,7 @@ const Sidebar = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-3 w-3/4 h-10 mx-auto flex items-center justify-center 
-            rounded-lg bg-red-100 text-red-700 border border-red-300 
-            text-sm font-semibold shadow-sm 
-            hover:bg-red-200 hover:border-red-400 
-            transition-all duration-200 active:scale-[0.98] 
-            focus:outline-none focus:ring-2 focus:ring-red-200"
+            className="mt-3 w-3/4 h-10 mx-auto flex items-center justify-center rounded-lg bg-red-100 text-red-700 border border-red-300 text-sm font-semibold shadow-sm hover:bg-red-200 hover:border-red-400 transition-all duration-200 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-200"
           >
             Logout
           </button>

@@ -1,3 +1,4 @@
+// src/app/api/project/[id]/route.js
 import { NextResponse } from "next/server";
 import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
@@ -34,17 +35,23 @@ const PROJECT_BY_PK = `
           staff_type
           can_login
           is_active
+          reports_to
           doors_knocked
           doors_knocked_per_day
           contacts_made_per_day
+          rental_car_eligible
         }
       }
 
       project_schedules(order_by: { work_date: asc }) {
         id
         work_date
-        project_schedule_staff {
+        project_schedule_staff(order_by: { staff: { last_name: asc } }) {
           staff_id
+          status
+          shift_label
+          notes
+          updated_at
           staff {
             id
             user_id
@@ -58,12 +65,35 @@ const PROJECT_BY_PK = `
             staff_type
             can_login
             is_active
+            reports_to
             doors_knocked
             doors_knocked_per_day
             contacts_made_per_day
+            rental_car_eligible
           }
         }
       }
+
+project_schedule_requests(
+  order_by: [{ status: asc }, { created_at: desc }]
+) {
+  id
+  staff_id
+  work_date
+  request_type
+  current_shift_label
+  requested_shift_label
+  detail
+  status
+  created_at
+  resolved_at
+  staffByStaffId {
+    id
+    first_name
+    last_name
+    full_name
+  }
+}
     }
   }
 `;
@@ -77,6 +107,17 @@ mutation UpdateProject($id: uuid!, $set: projects_set_input!) {
 `;
 
 const safeObj = (v) => (v && typeof v === "object" ? v : {});
+
+function normalizeWorkDate(input) {
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    return input;
+  }
+
+  const dt = new Date(input);
+  if (!Number.isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+
+  return String(input);
+}
 
 function toApiStaff(s) {
   if (!s) return null;
@@ -95,9 +136,37 @@ function toApiStaff(s) {
     staffType: s.staff_type ?? "employee",
     canLogin: s.can_login ?? true,
     isActive: s.is_active ?? true,
+    reportsTo: s.reports_to ?? null,
     doorsKnocked: s.doors_knocked ?? 0,
     doorsKnockedPerDay: safeObj(s.doors_knocked_per_day),
     contactsMadePerDay: safeObj(s.contacts_made_per_day),
+    rentalCarEligible: s.rental_car_eligible ?? true,
+  };
+}
+
+function toApiScheduleRequest(req) {
+  const firstName = req?.staffByStaffId?.first_name || "";
+  const lastName = req?.staffByStaffId?.last_name || "";
+  const fullName =
+    req?.staffByStaffId?.full_name ||
+    `${firstName} ${lastName}`.trim() ||
+    "Unknown Staff";
+
+  return {
+    id: req.id,
+    type: req.request_type,
+    currentShiftLabel: req.current_shift_label || "",
+    requestedShiftLabel: req.requested_shift_label || "",
+    detail: req.detail || "",
+    status: req.status,
+    date: normalizeWorkDate(req.work_date),
+    createdAt: req.created_at || null,
+    resolvedAt: req.resolved_at || null,
+    staffId: req?.staffByStaffId?.id || req?.staff_id || null,
+    staffName: fullName,
+    staffFirstName: firstName,
+    staffLastName: lastName,
+    initials: `${firstName?.[0] || "?"}${lastName?.[0] || "?"}`.toUpperCase(),
   };
 }
 
@@ -110,11 +179,26 @@ function toProjectShape(p) {
 
   const schedule = (p.project_schedules || []).map((s) => ({
     id: s.id,
-    date: s.work_date,
+    date: normalizeWorkDate(s.work_date),
     employees: (s.project_schedule_staff || [])
-      .map((ss) => toApiStaff(ss.staff))
+      .map((ss) => {
+        const employee = toApiStaff(ss.staff);
+        if (!employee) return null;
+
+        return {
+          ...employee,
+          status: ss.status || "working",
+          shiftLabel: ss.shift_label || "",
+          notes: ss.notes || "",
+          updatedAt: ss.updated_at || null,
+        };
+      })
       .filter(Boolean),
   }));
+
+  const scheduleRequests = (p.project_schedule_requests || []).map(
+    toApiScheduleRequest,
+  );
 
   return {
     _id: p.id,
@@ -134,6 +218,7 @@ function toProjectShape(p) {
     survey: safeObj(p.survey),
     assignedEmployees,
     schedule,
+    scheduleRequests,
   };
 }
 

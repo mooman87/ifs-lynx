@@ -1,3 +1,4 @@
+// api/auth/register/route.js
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { hasuraFetch } from "@/utils/hasura";
@@ -33,17 +34,7 @@ const ALLOWED_ROLES = [
 ];
 
 const ALLOWED_ORG_TYPES = ["Vendor", "Campaign", "PAC", "Party", "Demo"];
-
-const STAFF_MANAGER_ROLES = new Set([
-  "Super Admin",
-  "Campaign Manager",
-  "Deputy Campaign Manager",
-  "C Suite",
-  "HR",
-  "Operations Director",
-  "State Director",
-  "Political Director",
-]);
+const ALLOWED_STAFF_TYPES = ["employee", "contractor", "volunteer"];
 
 const isUuid = (v) =>
   typeof v === "string" &&
@@ -111,16 +102,6 @@ query CheckOrgSlug($slug: String!) {
 }
 `;
 
-const COUNT_USERS_BY_ORG = `
-query CountUsersByOrg($orgId: uuid!) {
-  users_aggregate(where: { organization_id: { _eq: $orgId } }) {
-    aggregate {
-      count
-    }
-  }
-}
-`;
-
 const INSERT_ORG = `
 mutation InsertOrg($object: organizations_insert_input!) {
   insert_organizations_one(object: $object) {
@@ -162,14 +143,31 @@ mutation DeleteUser($id: uuid!) {
 `;
 
 const INSERT_STAFF = `
-mutation InsertStaff($object: employees_insert_input!) {
-  insert_employees_one(object: $object) {
+mutation InsertStaff($object: staff_insert_input!) {
+  insert_staff_one(object: $object) {
     id
+    organization_id
+    user_legacy_id
+    email
+    username
+    full_name
+    role
+    org_role
     first_name
     last_name
-    email
-    role
-    user_id
+    gender
+    dob
+    phone
+    address
+    address2
+    city
+    state
+    zip
+    available_start
+    reports_to
+    home_airport
+    alt_airport
+    rental_car_eligible
     can_login
     staff_type
     is_active
@@ -216,7 +214,8 @@ export async function POST(request) {
     const fullName = body.fullName?.trim();
     const username = body.username?.trim();
     const password = body.password;
-    const role = body.role?.trim() || "Campaign Manager";
+    const normalizedRole =
+      body.role?.trim() || body.orgRole?.trim() || "Campaign Manager";
 
     const organization = body.organization?.trim();
     const organizationName =
@@ -232,14 +231,14 @@ export async function POST(request) {
       );
     }
 
-    if (!organization && !organizationName) {
+    if (!ALLOWED_STAFF_TYPES.includes(staffType)) {
       return NextResponse.json(
-        { message: "An organization ID or organization name is required" },
+        { message: "Invalid staff type" },
         { status: 400 },
       );
     }
 
-    if (!ALLOWED_ROLES.includes(role)) {
+    if (!ALLOWED_ROLES.includes(normalizedRole)) {
       return NextResponse.json({ message: "Invalid role" }, { status: 400 });
     }
 
@@ -265,7 +264,36 @@ export async function POST(request) {
 
     let orgRecord;
 
-    if (organization) {
+    if (authUser && authUser.role !== "Super Admin") {
+      if (!authUser.organization?.id) {
+        return NextResponse.json(
+          { message: "Authenticated user is missing organization context." },
+          { status: 400 },
+        );
+      }
+
+      const orgRes = await hasuraFetch(
+        CHECK_ORG_EXISTS,
+        { orgId: authUser.organization.id },
+        { admin: true },
+      );
+
+      if (!orgRes.organizations_by_pk) {
+        return NextResponse.json(
+          { message: "Organization not found" },
+          { status: 404 },
+        );
+      }
+
+      orgRecord = orgRes.organizations_by_pk;
+
+      if (!canManageOrgStaff(authUser)) {
+        return NextResponse.json(
+          { message: "You do not have permission to create staff users." },
+          { status: 403 },
+        );
+      }
+    } else if (organization) {
       if (!isUuid(organization)) {
         return NextResponse.json(
           { message: "Invalid organization ID" },
@@ -287,36 +315,14 @@ export async function POST(request) {
       }
 
       orgRecord = orgRes.organizations_by_pk;
-
-      if (!authUser) {
-        return NextResponse.json(
-          {
-            message:
-              "Authentication required to add users to an existing organization.",
-          },
-          { status: 401 },
-        );
-      }
-
-      if (
-        authUser.role !== "Super Admin" &&
-        authUser.organization?.id !== orgRecord.id
-      ) {
-        return NextResponse.json(
-          { message: "You can only add users to your own organization." },
-          { status: 403 },
-        );
-      }
-
-      if (!canManageOrgStaff(authUser)) {
-        return NextResponse.json(
-          { message: "You do not have permission to create staff users." },
-          { status: 403 },
-        );
-      }
-    } else {
+    } else if (organizationName) {
       orgRecord = await createOrganization(organizationName, orgType);
       createdOrgId = orgRecord.id;
+    } else {
+      return NextResponse.json(
+        { message: "An organization ID or organization name is required" },
+        { status: 400 },
+      );
     }
 
     await assertSeatAvailable(orgRecord.id);
@@ -332,7 +338,7 @@ export async function POST(request) {
           full_name: fullName,
           organization_id: orgRecord.id,
           password_hash,
-          role,
+          role: normalizedRole,
         },
       },
       { admin: true },
@@ -348,20 +354,43 @@ export async function POST(request) {
       {
         object: {
           organization_id: orgRecord.id,
-          user_id: newUser.id,
-          first_name: firstName || null,
-          last_name: lastName || null,
+          user_legacy_id: newUser.id,
+
           email,
-          role,
+          username,
+          full_name: fullName,
+          role: normalizedRole,
+          org_role: normalizedRole,
+
+          first_name: body.firstName?.trim() || firstName || null,
+          last_name: body.lastName?.trim() || lastName || null,
+          gender: body.gender?.trim() || null,
+          dob: body.dob || null,
+          phone: body.phone?.trim() || null,
+          address: body.address?.trim() || null,
+          address2: body.address2?.trim() || null,
+          city: body.city?.trim() || null,
+          state: body.state?.trim() || null,
+          zip: body.zip?.trim() || null,
+          available_start: body.availableStart || null,
+          reports_to: body.reportsTo?.trim() || null,
+          home_airport: body.homeAirport?.trim() || null,
+          alt_airport: body.altAirport?.trim() || null,
+
+          rental_car_eligible: body.rentalCarEligible ?? false,
           can_login: true,
           staff_type: staffType,
           is_active: true,
+          password_hash,
+          doors_knocked: 0,
+          doors_knocked_per_day: {},
+          contacts_made_per_day: {},
         },
       },
       { admin: true },
     );
 
-    const staff = staffInsert.insert_employees_one;
+    const staff = staffInsert.insert_staff_one;
 
     return NextResponse.json(
       {
@@ -379,8 +408,23 @@ export async function POST(request) {
           firstName: staff.first_name,
           lastName: staff.last_name,
           email: staff.email,
-          role: staff.role,
-          userId: staff.user_id,
+          username: staff.username,
+          fullName: staff.full_name,
+          role: staff.org_role ?? staff.role,
+          userId: staff.user_legacy_id,
+          gender: staff.gender,
+          dob: staff.dob,
+          phone: staff.phone,
+          address: staff.address,
+          address2: staff.address2,
+          city: staff.city,
+          state: staff.state,
+          zip: staff.zip,
+          availableStart: staff.available_start,
+          reportsTo: staff.reports_to,
+          homeAirport: staff.home_airport,
+          altAirport: staff.alt_airport,
+          rentalCarEligible: staff.rental_car_eligible,
           canLogin: staff.can_login,
           staffType: staff.staff_type,
           isActive: staff.is_active,

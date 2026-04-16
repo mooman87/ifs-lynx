@@ -20,21 +20,21 @@ const planCards = [
   {
     name: "Citizen",
     price: "$0.00/mo",
-    seats: 5,
+    seats: 10,
     copy: "Start organizing with grassroots essentials.",
   },
-  {
-    name: "Coalition",
-    price: "$99.99/mo",
-    seats: 15,
-    copy: "For growing teams that need more horsepower.",
-  },
-  {
-    name: "Command Center",
-    price: "$199.99/mo",
-    seats: 50,
-    copy: "Full-command setup for serious operations.",
-  },
+  // {
+  //   name: "Coalition",
+  //   price: "$99.99/mo",
+  //   seats: 15,
+  //   copy: "For growing teams that need more horsepower.",
+  // },
+  // {
+  //   name: "Command Center",
+  //   price: "$199.99/mo",
+  //   seats: 50,
+  //   copy: "Full-command setup for serious operations.",
+  // },
 ];
 
 function PaymentStep({

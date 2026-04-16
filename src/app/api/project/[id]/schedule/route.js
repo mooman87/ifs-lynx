@@ -1,3 +1,4 @@
+// api/project/[id]/schedule/route.js
 import { NextResponse } from "next/server";
 import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
@@ -58,7 +59,11 @@ query FindScheduleStaff($scheduleId: uuid!, $staffId: uuid!) {
     }
     limit: 1
   ) {
+    schedule_id
     staff_id
+    status
+    shift_label
+    notes
   }
 }
 `;
@@ -66,7 +71,43 @@ query FindScheduleStaff($scheduleId: uuid!, $staffId: uuid!) {
 const INSERT_SCHEDULE_STAFF = `
 mutation InsertScheduleStaff($object: project_schedule_staff_insert_input!) {
   insert_project_schedule_staff_one(object: $object) {
+    schedule_id
     staff_id
+    status
+    shift_label
+    notes
+    updated_at
+  }
+}
+`;
+
+const UPDATE_SCHEDULE_STAFF = `
+mutation UpdateScheduleStaff(
+  $scheduleId: uuid!,
+  $staffId: uuid!,
+  $set: project_schedule_staff_set_input!
+) {
+  update_project_schedule_staff(
+    where: {
+      schedule_id: { _eq: $scheduleId },
+      staff_id: { _eq: $staffId }
+    },
+    _set: $set
+  ) {
+    affected_rows
+  }
+}
+`;
+
+const DELETE_SCHEDULE_STAFF = `
+mutation DeleteScheduleStaff($scheduleId: uuid!, $staffId: uuid!) {
+  delete_project_schedule_staff(
+    where: {
+      schedule_id: { _eq: $scheduleId },
+      staff_id: { _eq: $staffId }
+    }
+  ) {
+    affected_rows
   }
 }
 `;
@@ -90,7 +131,7 @@ query ProjectById($id: uuid!) {
 
     project_staff(order_by: { staff: { last_name: asc } }) {
       staff_id
-      staff {
+      staffByStaffId {
         id
         user_id
         user_legacy_id
@@ -103,6 +144,7 @@ query ProjectById($id: uuid!) {
         staff_type
         can_login
         is_active
+        reports_to
         doors_knocked
         doors_knocked_per_day
         contacts_made_per_day
@@ -114,6 +156,10 @@ query ProjectById($id: uuid!) {
       work_date
       project_schedule_staff(order_by: { staff: { last_name: asc } }) {
         staff_id
+        status
+        shift_label
+        notes
+        updated_at
         staff {
           id
           user_id
@@ -127,10 +173,32 @@ query ProjectById($id: uuid!) {
           staff_type
           can_login
           is_active
+          reports_to
           doors_knocked
           doors_knocked_per_day
           contacts_made_per_day
         }
+      }
+    }
+
+    project_schedule_requests(
+      order_by: [{ status: asc }, { created_at: desc }]
+    ) {
+      id
+      staff_id
+      work_date
+      request_type
+      current_shift_label
+      requested_shift_label
+      detail
+      status
+      created_at
+      resolved_at
+      staff {
+        id
+        first_name
+        last_name
+        full_name
       }
     }
   }
@@ -141,22 +209,53 @@ function toApiStaff(s) {
   if (!s) return null;
 
   return {
-    _id: s.id,
     id: s.id,
+    _id: s.id,
     userId: s.user_id ?? s.user_legacy_id ?? null,
-    firstName: s.first_name,
-    lastName: s.last_name,
+    firstName: s.first_name ?? "",
+    lastName: s.last_name ?? "",
     fullName:
       s.full_name || [s.first_name, s.last_name].filter(Boolean).join(" "),
-    email: s.email,
+    email: s.email ?? "",
     username: s.username ?? null,
     role: s.org_role ?? null,
     staffType: s.staff_type ?? "employee",
     canLogin: s.can_login ?? true,
     isActive: s.is_active ?? true,
+    reportsTo: s.reports_to ?? null,
     doorsKnocked: s.doors_knocked ?? 0,
     doorsKnockedPerDay: s.doors_knocked_per_day ?? {},
     contactsMadePerDay: s.contacts_made_per_day ?? {},
+  };
+}
+
+function toApiScheduleRequest(req) {
+  const firstName = req?.staffByStaffId?.first_name || "";
+  const lastName = req?.staffByStaffId?.last_name || "";
+  const fullName =
+    req?.staffByStaffId?.full_name ||
+    `${firstName} ${lastName}`.trim() ||
+    "Unknown Staff";
+
+  return {
+    id: req.id,
+    staffId: req?.staffByStaffId?.id || req?.staff_id || null,
+    staffName: fullName,
+    staffFirstName: firstName,
+    staffLastName: lastName,
+    initials: `${firstName?.[0] || "?"}${lastName?.[0] || "?"}`.toUpperCase(),
+    type: req.request_type,
+    detail:
+      req.detail ||
+      (req.request_type === "shift_change"
+        ? `Requested ${req.requested_shift_label || "a shift change"}`
+        : `Request for ${normalizeWorkDate(req.work_date)}`),
+    date: normalizeWorkDate(req.work_date),
+    status: req.status,
+    currentShiftLabel: req.current_shift_label || "",
+    requestedShiftLabel: req.requested_shift_label || "",
+    createdAt: req.created_at || null,
+    resolvedAt: req.resolved_at || null,
   };
 }
 
@@ -172,10 +271,24 @@ function toProjectShape(p) {
     id: s.id,
     date: normalizeWorkDate(s.work_date),
     employees: (s.project_schedule_staff || [])
-      .map((ss) => ss.staff)
-      .filter(Boolean)
-      .map(toApiStaff),
+      .map((ss) => {
+        const employee = toApiStaff(ss.staff);
+        if (!employee) return null;
+
+        return {
+          ...employee,
+          status: ss.status || "working",
+          shiftLabel: ss.shift_label || "",
+          notes: ss.notes || "",
+          updatedAt: ss.updated_at || null,
+        };
+      })
+      .filter(Boolean),
   }));
+
+  const scheduleRequests = (p.project_schedule_requests || []).map(
+    toApiScheduleRequest,
+  );
 
   return {
     _id: p.id,
@@ -194,16 +307,20 @@ function toProjectShape(p) {
     survey: p.survey || {},
     assignedEmployees,
     schedule,
+    scheduleRequests,
   };
 }
 
 export const PUT = withUser(async (request, user, ctx) => {
   try {
     const { id } = await ctx.params;
-
     const body = await request.json();
+
     const staffId = body.staffId || body.employeeId;
     const workDate = normalizeWorkDate(body.date);
+    const status = body.status || "working";
+    const shiftLabel = body.shiftLabel ?? null;
+    const notes = body.notes ?? null;
 
     if (!id) {
       return NextResponse.json(
@@ -278,7 +395,31 @@ export const PUT = withUser(async (request, user, ctx) => {
     if (!existingLink.project_schedule_staff?.length) {
       await hasuraFetch(
         INSERT_SCHEDULE_STAFF,
-        { object: { schedule_id: scheduleId, staff_id: staffId } },
+        {
+          object: {
+            schedule_id: scheduleId,
+            staff_id: staffId,
+            status,
+            shift_label: shiftLabel,
+            notes,
+            updated_at: new Date().toISOString(),
+          },
+        },
+        { admin: true },
+      );
+    } else {
+      await hasuraFetch(
+        UPDATE_SCHEDULE_STAFF,
+        {
+          scheduleId,
+          staffId,
+          set: {
+            status,
+            shift_label: shiftLabel,
+            notes,
+            updated_at: new Date().toISOString(),
+          },
+        },
         { admin: true },
       );
     }
@@ -295,6 +436,64 @@ export const PUT = withUser(async (request, user, ctx) => {
     );
   } catch (error) {
     console.error("Error updating schedule:", error);
+    return NextResponse.json(
+      { message: "Server error", error: error.message },
+      { status: 500 },
+    );
+  }
+});
+
+export const DELETE = withUser(async (request, user, ctx) => {
+  try {
+    const { id } = await ctx.params;
+    const body = await request.json();
+
+    const staffId = body.staffId || body.employeeId;
+    const workDate = normalizeWorkDate(body.date);
+
+    if (!id || !workDate || !staffId) {
+      return NextResponse.json(
+        { message: "Missing project id, date, or staffId" },
+        { status: 400 },
+      );
+    }
+
+    const canManage = await canManageProject(id, user);
+    if (!canManage) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const findSched = await hasuraFetch(
+      FIND_SCHEDULE,
+      { projectId: id, workDate },
+      { admin: true },
+    );
+
+    const scheduleId = findSched.project_schedule?.[0]?.id;
+    if (!scheduleId) {
+      return NextResponse.json(
+        { message: "Schedule not found for selected date" },
+        { status: 404 },
+      );
+    }
+
+    await hasuraFetch(
+      DELETE_SCHEDULE_STAFF,
+      { scheduleId, staffId },
+      { admin: true },
+    );
+
+    const refreshed = await hasuraFetch(PROJECT_BY_PK, { id }, { admin: true });
+
+    return NextResponse.json(
+      {
+        message: "Staff member unscheduled successfully",
+        project: toProjectShape(refreshed.projects_by_pk),
+      },
+      { status: 200 },
+    );
+  } catch (error) {
+    console.error("Error unscheduling staff:", error);
     return NextResponse.json(
       { message: "Server error", error: error.message },
       { status: 500 },

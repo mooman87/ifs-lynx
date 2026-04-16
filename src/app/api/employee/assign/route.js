@@ -1,3 +1,4 @@
+// api/employee/assign/route.js
 import { NextResponse } from "next/server";
 import { withUser, canManageProject } from "@/utils/auth";
 import { hasuraFetch } from "@/utils/hasura";
@@ -26,6 +27,7 @@ query ProjectCtx($id: uuid!) {
         staff_type
         can_login
         is_active
+        rental_car_eligible
       }
     }
   }
@@ -46,6 +48,7 @@ query StaffCtx($id: uuid!) {
     staff_type
     can_login
     is_active
+    rental_car_eligible
   }
 }
 `;
@@ -80,6 +83,7 @@ function toStaffShape(s) {
     staffType: s.staff_type ?? "employee",
     canLogin: s.can_login ?? true,
     isActive: s.is_active ?? true,
+    rentalCarEligible: s.rental_car_eligible ?? true,
   };
 }
 
